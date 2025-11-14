@@ -16,59 +16,18 @@ def log_test_title(url):
   logger.info(line)
 
 
-def wait_for_server(url, retries=50, delay=0.2):
-  # Wait for the server to start
-  print(f"Checking if server is ready by making request to {url} ...")
-  for i in range(retries):
-    try:
-      response = requests.get(url, timeout=0.5)
-      if response.status_code == 200:
-        break
-    except Exception:
-      print(f"Server not ready. Next try in {delay} sec...")
-      time.sleep(delay)
-  else:
-    raise RuntimeError(f"Server did not start after {retries} attempts.")
-
-
-def start_server(config_file):
-  import atexit
-  import multiprocessing
-
-  logger.info("Starting server in background process")
-  kwargs = {
-    "target": start_server_process,
-    "args": (config_file,),
-    "daemon": True
-  }
-  server_proc = multiprocessing.Process(**kwargs)
-  server_proc.start()
-  atexit.register(stop_server, server_proc)
-
-
-def start_server_process(config_file):
-  import hapiserver
-  logger.info("Starting server")
-  hapiserver.run(config_file)
-
-
-def stop_server(server_proc):
-  try:
-    if server_proc.is_alive():
-      logger.info("Terminating server process")
-      server_proc.terminate()
-      server_proc.join(timeout=2)
-  except Exception:
-    pass
-
 
 def run_tests(port, config_file):
 
-  start_server(config_file)
-
   url_base = f"http://0.0.0.0:{port}/hapi"
 
-  wait_for_server(url_base, retries=4, delay=0.5)
+  wait = {
+    "url": url_base,
+    "retries": 10,
+    "delay": 0.5
+  }
+  import utilrsw.uvicorn
+  utilrsw.uvicorn.start('hapiserver.app', config=config_file, wait=wait)
 
   url = url_base
   log_test_title(url)

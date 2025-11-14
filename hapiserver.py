@@ -14,7 +14,13 @@ else:
   base = os.path.dirname(os.path.abspath(__file__))
   config_file = f"{base}/bin/psws/config.json"
 
+import json
+with open(config_file, "r") as f:
+  config_data = f.read()
+  config = json.loads(config_data)
 
-hapiserver.run(config_file)
+#hapiserver.run(config_server=config['server'], config_app=config['app'])
+hapiserver.run(config=config)
+#hapiserver.run(config_file)
 
 

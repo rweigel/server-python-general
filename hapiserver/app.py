@@ -4,6 +4,17 @@ import logging
 import hapiserver
 
 logger = logging.getLogger(__name__)
+# Configure logging to work with uvicorn
+logging.basicConfig(
+  level=logging.INFO,
+  format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
+logger.propagate = True
+
+def run(config=None, config_server=None, config_app=None):
+  import utilrsw.uvicorn
+  app_function = "hapiserver.app"
+  utilrsw.uvicorn.run(app_function, config=config, config_server=config_server, config_app=config_app)
 
 def app(config):
   import fastapi
@@ -12,7 +23,8 @@ def app(config):
     with open(config, "r") as f:
       config = f.read()
       config = json.loads(config)
-    config = config.get('api', {})
+    if 'api' in config:
+      config = config['api']
 
   hapiserver.util.set_env(config)
   hapiserver.util.expand_env(config)
