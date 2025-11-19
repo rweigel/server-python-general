@@ -4,27 +4,33 @@ import logging
 import hapiserver
 
 logger = logging.getLogger(__name__)
-# Configure logging to work with uvicorn
-logging.basicConfig(
-  level=logging.INFO,
-  format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-)
-logger.propagate = True
-
-def run(config=None, config_server=None, config_app=None):
-  import utilrsw.uvicorn
-  app_function = "hapiserver.app"
-  utilrsw.uvicorn.run(app_function, config=config, config_server=config_server, config_app=config_app)
+logging.basicConfig()
 
 def app(config):
   import fastapi
 
   if isinstance(config, str):
+    # Load configuration from JSON file
     with open(config, "r") as f:
+      logger.info(f"Reading: {config}")
       config = f.read()
       config = json.loads(config)
-    if 'api' in config:
-      config = config['api']
+
+      debug = config.get("debug", False)
+      log_level = config.get("log_level", None)
+      if debug:
+        logger.setLevel(logging.DEBUG)
+      if log_level is not None:
+        logger.setLevel(log_level.upper())
+      logger.info(f"Debug: {debug}, log_level: {log_level}")
+
+      if 'config' in config:
+        # hapiserver.cli() returns a dict with 'config' key and other clargs
+        with open(config['config'], "r") as f:
+          logger.info(f"Reading: {config['config']}")
+          config = f.read()
+          config = json.loads(config)
+        # TODO: Could merge or overwrite other clargs into config here if needed.
 
   hapiserver.util.set_env(config)
   hapiserver.util.expand_env(config)

@@ -1,13 +1,14 @@
 # Usage:
-#   python serve_test.py [<config_file>]
+#   python hapiserver_test.py
+#
+# See
+#  python hapiserver.py --help
+# for configuration options, e.g.,
+#  python hapiserver.py --config conf/demo.json --port 8080
 
-import time
 import logging
-import requests
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
-
 
 def log_test_title(url):
   line = len(url)*"-"
@@ -16,18 +17,16 @@ def log_test_title(url):
   logger.info(line)
 
 
+def run_tests(configs, wait):
+  import requests
+  import utilrsw.uvicorn
 
-def run_tests(port, config_file):
-
+  port = configs['server']['--port']
   url_base = f"http://0.0.0.0:{port}/hapi"
 
-  wait = {
-    "url": url_base,
-    "retries": 10,
-    "delay": 0.5
-  }
-  import utilrsw.uvicorn
-  utilrsw.uvicorn.start('hapiserver.app', config=config_file, wait=wait)
+  wait['url'] = url_base
+
+  utilrsw.uvicorn.start('hapiserver.app', configs, wait)
 
   url = url_base
   log_test_title(url)
@@ -69,10 +68,14 @@ def run_tests(port, config_file):
   assert 'text/csv' in response.headers['Content-Type']
   assert response.text.startswith('2025-10-20T00:00:00Z')
 
+
 if __name__ == "__main__":
-  import sys
-  if len(sys.argv) > 1:
-    config_file = sys.argv[1]
-  else:
-    config_file = "/Users/weigel/git/hapi/server-python-general/bin/psws/config.json"
-  run_tests(5999, config_file)
+  import hapiserver
+
+  wait = {
+    "retries": 10,
+    "delay": 0.5
+  }
+
+  configs = hapiserver.cli()
+  run_tests(configs, wait)
