@@ -29,11 +29,11 @@ def kwargs(path):
 
   docs = get(path)
 
-  if path[-1] == 'get':
+  if path[-1] in ['get', 'head']:
     return {
-        'tags': docs['tags'],
-        'summary': docs['summary'],
-        'description': docs['description']
+        'tags': docs.get('tags', []),
+        'summary': docs.get('summary', ''),
+        'description': docs.get('description', '')
     }
 
   if path[0] == 'info' and len(path) == 1:

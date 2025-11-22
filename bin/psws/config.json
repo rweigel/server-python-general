@@ -1,7 +1,6 @@
 {
   "index.html": "~/git/hapi/server-python-general/html/index.html",
   "path": "/hapi",
-  "HAPI": "3.3",
   "scripts": {
     "catalog": "$PSWS_BIN_DIR/catalog.py",
     "info": "$PSWS_BIN_DIR/info.py",
@@ -10,5 +9,11 @@
   "ENV": {
     "PSWS_BIN_DIR": "~/git/hapi/server-python-general/bin/psws",
     "PSWS_DATA_DIR": "~/git/hapi/server-python-general/data/psws"
+  },
+  "about": {
+    "id": "PSWS",
+    "title": "PSWS HAPI Server",
+    "HAPI": "3.3",
+    "contact": ""
   }
 }
