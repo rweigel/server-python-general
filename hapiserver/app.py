@@ -257,7 +257,7 @@ def _indexhtml(config):
       "content": "Not Found",
     }
 
-  response['headers'] = _headers(config['HAPI'], cors=False)
+  response['headers'] = _headers(config, cors=False)
   response['media_type'] = "text/html"
   return response
 
@@ -397,7 +397,7 @@ def _catalog(query_params, config):
   response = {
     "content": json.dumps(content, indent=2),
     "media_type": "application/json",
-    "headers": _headers(config['HAPI']),
+    "headers": _headers(config),
   }
 
   return response
@@ -435,7 +435,7 @@ def _info(query_params, config):
   response = {
     "content": json.dumps(content, indent=2),
     "media_type": "application/json",
-    "headers": _headers(config['HAPI']),
+    "headers": _headers(config),
   }
 
   return response
@@ -466,13 +466,14 @@ def _data(query_params, config):
   response = {
     "content": stream,
     "media_type": "text/csv",
-    "headers": _headers(config['HAPI']),
+    "headers": _headers(config),
   }
 
   return response
 
 
-def _headers(hapi_version, cors=True):
+def _headers(config, cors=True):
+  hapi_version = config['about']['HAPI']
   server = f"HAPI/{hapi_version} Server"
   server += ";https://github.com/hapi-server/server-python-general"
   server += f"; v{hapiserver.__version__}"

@@ -11,9 +11,8 @@
 #   hapi/data?dataset=<id>&start=<start>&stop=<stop>&parameters=<parameters>
 #
 # Examples:
-#  python data.py W2NAF 2025-10-20T00:00:00Z 2025-10-22T00:00:00Z
-#  python data.py W2NAF 2025-10-20T23:30:19Z 2025-10-20T23:31:30Z
-#  python data.py W2NAF 2025-10-20T23:30:19Z 2025-10-20T23:31:30Z Field_Vector
+#  python data.py S000028 2025-10-20T00:00:00Z 2025-10-21T00:00:00Z
+#  python data.py S000028 2025-10-20T00:00:00Z 2025-10-21T00:00:00Z Field_Vector
 
 import os
 import re
@@ -23,12 +22,14 @@ import datetime
 
 debug = False
 
-# Get DATA_DIR from environment variable
-DATA_DIR = os.getenv("PSWS_DATA_DIR")
-DATA_DIR = os.path.expanduser(DATA_DIR)
 
-def files_needed(id, start, stop):
-  dataset_dir = os.path.join(DATA_DIR, id)
+def error(emsg):
+  print(emsg, file=sys.stderr)
+  exit(1)
+
+
+def files_needed(id, start, stop, data_dir):
+  dataset_dir = os.path.join(data_dir, id)
   if not os.path.exists(dataset_dir):
     print(f"Directory not found: {dataset_dir}", file=sys.stderr)
     sys.exit(1)
@@ -65,8 +66,8 @@ def files_needed(id, start, stop):
   return files_needed
 
 
-def read_file(id, filename, start, stop):
-  filepath = os.path.join(DATA_DIR, id, filename)
+def read_file(id, filename, start, stop, parameters, data_dir):
+  filepath = os.path.join(data_dir, id, filename)
   # Row format:
   # {'ts': '21 Oct 2025 04:01:59', 'rt': 32.5, 'lt': 41.69,
   #  'x': -45676.67, 'y': -13284.67, 'z': 16150.67,
@@ -107,6 +108,22 @@ def read_file(id, filename, start, stop):
       print(row)
 
 
+# Get data_dir from environment variable
+data_dir = os.getenv("PSWS_DATA_DIR")
+if not data_dir and not debug:
+  error("Environment variable PSWS_DATA_DIR not set. Exiting with code 1.")
+else:
+  data_dir = os.path.join(os.path.dirname(__file__), "../../data/psws")
+
+try:
+  data_dir = os.path.expanduser(data_dir)
+except Exception as e:
+  error("Could not expand PSWS_DATA_DIR env variable. Exiting with code 1.")
+
+
+if len(sys.argv) < 4:
+  error("At least three command line arguments needed: python data.py <id> <start> <stop> [<parameters>]")
+
 id, start, stop = sys.argv[1], sys.argv[2], sys.argv[3]
 
 if len(sys.argv) > 4:
@@ -117,7 +134,6 @@ else:
 if debug:
   print(f"Debug: dataset: {id}, start: {start}, stop: {stop}")
 
-dirs = {'S000028': 'W2NAF', 'S000029': 'W2NAE'}
-files = files_needed(id, start, stop)
+files = files_needed(id, start, stop, data_dir)
 for files in files:
-  read_file(id, files, start, stop)
+  read_file(id, files, start, stop, parameters, data_dir)

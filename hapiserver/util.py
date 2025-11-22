@@ -39,6 +39,19 @@ def expand_env(config):
 
 def check_config(config):
   import os
+
+  if not isinstance(config, dict):
+    logger.error("Configuration is not a dictionary. Exiting with code 1.")
+    exit(1)
+
+  if "about" not in config:
+    logger.error("Configuration missing 'about' section. Exiting with code 1.")
+    exit(1)
+
+  if "HAPI" not in config['about']:
+    logger.error("Configuration 'about' section missing 'HAPI' entry. Exiting with code 1.")
+    exit(1)
+
   fname = config.get("index.html", None)
   if fname is not None:
     fname = os.path.expanduser(fname)
