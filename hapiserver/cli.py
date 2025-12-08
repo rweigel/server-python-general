@@ -1,17 +1,15 @@
 def cli():
   import argparse
 
-  config_default = "bin/psws/config.json"
-
   # Define the text for the header
-  description = f"""
+  description = """
   HAPI Server
   -----------
   Example usage:
-    python hapiserver.py --config {config_default}
+    python hapiserver.py --config CONFIG_FILE.json
 
   Pass additional Uvicorn arguments as needed
-    python hapiserver.py --config {config_default} [Uvicorn options]
+    python hapiserver.py --config CONFIG_FILE.json [Uvicorn options]
   For Uvicorn options, see:
     python -m uvicorn --help
   """
@@ -22,15 +20,15 @@ def cli():
   clargs_uvicorn = utilrsw.uvicorn.cli()
 
 
-  config_help = "Path to JSON configuration file. Relative paths are "
-  config_help += "interpreted as relative to current working directory "
-  config_help += f"hapiserver.py is executed from. Default: {config_default}"
+  config_help = "Path to JSON configuration file. Relative paths in configuration"
+  config_help += "file are interpreted as relative to the directory "
+  config_help += "hapiserver.py is executed from."
 
   clargs = {
     "config": {
       "help": config_help,
       "type": str,
-      "default": config_default
+      "required": True
     },
     **clargs_uvicorn,
     "debug": {
