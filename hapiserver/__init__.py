@@ -21,3 +21,12 @@ from hapiserver.error import error
 
 import logging
 logging.basicConfig()
+
+def main():
+  # Entry point for console_scripts in setup.py
+  import hapiserver
+  import utilrsw.uvicorn
+
+  configs = hapiserver.cli()
+
+  utilrsw.uvicorn.run("hapiserver.app", configs)

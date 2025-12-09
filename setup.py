@@ -3,13 +3,12 @@ import re
 from pathlib import Path
 from setuptools import setup, find_packages
 
-install_requires = ["fastapi>=0.97", "uvicorn>=0.22"]
+install_requires = [
+  "fastapi>=0.97",
+  "uvicorn>=0.22",
+  "utilrsw @ git+https://github.com/rweigel/utilrsw"
+]
 
-try:
-  # Will work if utilrsw was already installed, for example via pip install -e .
-  import utilrsw
-except:
-  install_requires.append("utilrsw @ git+https://github.com/rweigel/utilrsw")
 
 HERE = Path(__file__).parent
 README = (HERE / "README.md").read_text(encoding="utf-8") if (HERE / "README.md").exists() else ""
@@ -35,8 +34,13 @@ setup(
   include_package_data=True,
   python_requires=">=3.8",
   install_requires=install_requires,
-  extras_require={
+  extras_require= {
     "dev": ["pytest", "check-manifest"],
+  },
+  entry_points={
+    "console_scripts": [
+      "hapiserver=hapiserver:main"
+    ]
   },
   classifiers=[
     "Programming Language :: Python :: 3",
