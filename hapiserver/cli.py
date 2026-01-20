@@ -1,4 +1,4 @@
-def cli():
+def cli(config=None):
   import argparse
 
   # Define the text for the header
@@ -42,6 +42,10 @@ def cli():
       "default": None
     }
   }
+
+  if config is not None:
+    clargs['config']['default'] = config
+    clargs['config']['required'] = False
 
   parser_kwargs = {
     "description": description,
