@@ -8,7 +8,9 @@ install_requires = [
   "uvicorn>=0.22",
   "utilrsw @ git+https://github.com/rweigel/utilrsw"
 ]
-
+package_data = {
+  "hapiserver": ["html/**/*"]
+}
 
 HERE = Path(__file__).parent
 README = (HERE / "README.md").read_text(encoding="utf-8") if (HERE / "README.md").exists() else ""
@@ -27,6 +29,7 @@ setup(
   description="Generic HAPI server implementation in Python",
   long_description=README,
   long_description_content_type="text/markdown" if README else None,
+  package_data=package_data,
   author="",
   url="https://github.com/hapi-server/server-python-generic",
   license="MIT",

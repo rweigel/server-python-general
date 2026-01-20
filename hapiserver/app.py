@@ -233,10 +233,11 @@ def _init_redirects(app, patho):
 
 
 def _indexhtml(config):
-  # Silently ignores any query parameters
+  # TODO: This silently ignores any query parameters
   import os
+
   default = os.path.normpath(os.path.join(os.path.dirname(__file__)))
-  default = os.path.join(default, "html", "index.html")
+  default = os.path.join(default, "..", "html", "index.html")
   fname = config.get("index.html", None)
   if fname is None:
     logger.info(f"No index.html configured, using default: {default}")
