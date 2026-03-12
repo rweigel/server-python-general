@@ -460,12 +460,13 @@ def _data(query_params, config):
   args = f"{query['dataset']} {query['start']} {query['stop']} {query['parameters']}"
 
   if 'scripts' in config and 'data' in config['scripts']:
-    stream, error = hapiserver.exec(config["scripts"]["data"], args, stream=True)
+    stream = config.get('stream', None)
+    stdout, error = hapiserver.exec(config["scripts"]["data"], args, stream=stream)
     if error:
       return hapiserver.error(error, config)
 
   response = {
-    "content": stream,
+    "content": stdout,
     "media_type": "text/csv",
     "headers": _headers(config),
   }
