@@ -24,6 +24,7 @@ def load_openapi_docs():
     logger.error(emsg)
     exit(1)
 
+
 def kwargs(path):
   """Extract documentation from OpenAPI spec"""
 
@@ -48,6 +49,7 @@ def kwargs(path):
   }
 
   return {}
+
 
 def get(path, kwargs=None):
   """Extract documentation from OpenAPI spec"""

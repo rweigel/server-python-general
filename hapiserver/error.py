@@ -3,17 +3,24 @@ logger = logging.getLogger(__name__)
 
 def error(error, config, message=None):
   import json
+
   if isinstance(error, int):
+    # If HAPI code given, generate error dict
     error = _hapi_error(error, message=message)
 
   if 'message' not in error:
+    # Use default error message
     message = _hapi_error(error['code'])['message']
+  else:
+    message = error['message']
 
+  # Print message to console
   if 'exception' in error:
+    coda = f"Exception message: {error['exception']}"
     if 'message_console' in error:
-      logger.error(f"{error['message_console']}: {error['exception']}")
+      logger.error(f"{error['message_console']}. {coda}")
     else:
-      logger.error(f"{message}: {error['exception']}")
+      logger.error(f"{message}. {coda}")
   else:
     if 'message_console' in error:
       logger.error(f"{error['message_console']}")

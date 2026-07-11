@@ -6,20 +6,27 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 def exec(script, args="", stream=None):
-  if stream is not None:
-    return _stream(script, args, stream=stream)
-  else:
-    # Note that if stream_stdout=False, stdout will not be streamed either,
-    # even if stream_stderr=True.
-    return _read(script, args)
-
-
-def _read(script, args=""):
 
   if not os.path.exists(script):
     content = "Execution script not found"
-    logger.error(f"{content}: {script}")
-    return None, {"code": 1500, "message": content}
+    error = {
+      "code": 1500,
+      "message": content,
+      "message_console": f"{content}: {script}"
+    }
+    return None, error
+
+  if stream is None:
+    # Note that if stream_stdout=False, stderr will not be streamed either,
+    # even if stream_stderr=True.
+    logger.debug("Executing script in non-streaming mode")
+    return _read(script, args)
+  else:
+    logger.debug("Executing script in streaming mode")
+    return _stream(script, args, stream=stream)
+
+
+def _read(script, args=""):
 
   call = [sys.executable, script, *args.split()]
   logger.info(f"Executing: {' '.join(call)}")
@@ -32,7 +39,7 @@ def _read(script, args=""):
     }
     result = subprocess.run(call, **kwargs)
     if result.stderr:
-      print(f"Script stderr: \n{result.stderr}")
+      logger.error(f"Script stderr (ignored): \n{result.stderr}")
     return result.stdout, None
   except Exception as e:
     message = "Execution of script failed"
@@ -46,10 +53,6 @@ def _read(script, args=""):
 
 
 def _stream(script, args="", stream=None):
-
-  if not os.path.exists(script):
-    content = "Execution script not found"
-    return None, {"code": 1500, "message": content}
 
   stream_stderr = stream.get('stderr', False)
   chunk_size = stream.get('chunk_size', 1000000)
@@ -80,7 +83,7 @@ def _stream(script, args="", stream=None):
       import threading
       def _drain_stderr():
         for line in proc.stderr:
-          print(f"Script stderr: {line.rstrip()}")
+          logger.error(f"Script stderr: {line.rstrip()}")
         proc.stderr.close()
       stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
       stderr_thread.start()

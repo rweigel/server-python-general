@@ -1,4 +1,6 @@
+
 def cli(config=None):
+  import logging
   import argparse
 
   # Define the text for the header
@@ -16,11 +18,11 @@ def cli(config=None):
 
   import utilrsw.uvicorn
 
-  # Get default server clargs from utilrsw.uvicorn
+  # Get default uvicorn command-line args
   clargs_uvicorn = utilrsw.uvicorn.cli()
 
 
-  config_help = "Path to JSON configuration file. Relative paths in configuration"
+  config_help = "Path to JSON configuration file. Relative paths in configuration "
   config_help += "file are interpreted as relative to the directory "
   config_help += "hapiserver.py is executed from."
 
@@ -43,10 +45,6 @@ def cli(config=None):
     }
   }
 
-  if config is not None:
-    clargs['config']['default'] = config
-    clargs['config']['required'] = False
-
   parser_kwargs = {
     "description": description,
     "formatter_class": argparse.RawDescriptionHelpFormatter
@@ -58,6 +56,19 @@ def cli(config=None):
   for k, v in clargs.items():
     parser.add_argument(f'--{k}', **v)
 
+  args = parser.parse_args()
+  if args.debug:
+    logging.getLogger('hapiserver').setLevel(logging.DEBUG)
+  if args.log_level:
+    logging.getLogger('hapiserver').setLevel(args.log_level.upper())
+
+  logger = logging.getLogger(__name__)
+  logger.debug(f"Command line arguments: {args}")
+
+  # Split args into dict wil keys 'server' and 'app', where 'server' contains
+  # args for uvicorn and 'app' contains args for the app.
   configs = utilrsw.uvicorn.cli(parser=parser)
+
+  configs['app'] = configs['app']['config']
 
   return configs
