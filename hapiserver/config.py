@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 
-def config(config_input=None, config_dir=None):
+def config(config_input=None, config_dir=None, resolve_functions=True):
   """Read, resolve, and return the hapiserver config as a dict.
 
   Accepts:
@@ -47,13 +47,16 @@ def config(config_input=None, config_dir=None):
     except Exception as e:
       _exit_error(f"Failed to read config file '{config_path}': {e}")
 
-    return config(cfg, config_dir=os.path.dirname(config_path))
+    return config(cfg, config_dir=os.path.dirname(config_path), resolve_functions=resolve_functions)
 
 
   _set_env(config_input)
   _resolve_env(config_input)
   _resolve_scripts(config_input, config_dir=config_dir)
-  _resolve_functions(config_input)
+  if resolve_functions:
+    _resolve_functions(config_input)
+  else:
+    _check_functions(config_input)
 
   logger.debug(f"config resolved: {config_input!r}")
 
@@ -77,6 +80,34 @@ def _resolve_scripts(cfg, config_dir=None):
       logger.debug(f"Resolved script path {cfg['scripts'][script_name]}")
     if not os.path.exists(cfg['scripts'][script_name]):
       _exit_error(f"Script file for endpoint /{script_name} not found: '{script}'")
+
+
+def _check_functions(cfg):
+  """Validate that all string function references in cfg['functions'] can be resolved.
+
+  Raises ValueError listing all unresolvable entries. Does not modify cfg.
+  """
+  import importlib
+
+  errors = []
+  for key, value in cfg.get('functions', {}).items():
+    if callable(value) or not isinstance(value, str):
+      continue
+    last_dot = value.rfind('.')
+    if last_dot == -1:
+      errors.append(f"functions.{key}: '{value}' has no '.' separator")
+      continue
+    module_path = value[:last_dot]
+    func_name = value[last_dot + 1:]
+    try:
+      module = importlib.import_module(module_path)
+      getattr(module, func_name)
+      logger.debug(f"Validated functions.{key} -> {module_path}.{func_name}")
+    except Exception as e:
+      errors.append(f"functions.{key}: failed to resolve '{value}': {e}")
+
+  if errors:
+    raise ValueError("Unresolvable function references:\n" + "\n".join(errors))
 
 
 def _resolve_functions(cfg):

@@ -38,29 +38,52 @@ logger = logging.getLogger(__name__)
 __version__ = "0.0.1"
 HAPI_VERSION = "3.3"
 
-def run(configs):
 
-  import utilrsw.uvicorn
+def _log_start(configs):
   at = f"http://{configs['server']['--host']}:{configs['server']['--port']}/hapi"
   logger.info(f"Starting HAPI server using Uvicorn at {at}")
-  utilrsw.uvicorn.run("hapiserver.app", configs)
 
-def run_cli():
-  import logging
 
+def run(configs):
+  start(configs)
+
+
+def start(configs, wait=None):
   import hapiserver
-
-  # Entry point for hapiserver script (set by [project.scripts] > hapiserver
-  # in pyproject.toml).
-  configs = hapiserver.cli()
-  # configs is a dict with keys 'server' and 'app', where 'server' contains args
-  # for uvicorn and 'app' contains args for the app.
-
+  import utilrsw.uvicorn
 
   logger.info(f"configs: {configs}")
 
-  # Get and validate the full config dict by reading the config file, 
-  # apply env var expansion, and validate.
-  configs['app'] = hapiserver.config(configs['app'])
+  # Check config but don't resolve functions so config can be serialized.
+  hapiserver.config(configs['app'], resolve_functions=False)
+
+  _log_start(configs)
+
+  if wait is None:
+    # Run in this thread and block until shutdown.
+    utilrsw.uvicorn.run('hapiserver.app', configs)
+  else:
+    utilrsw.uvicorn.start('hapiserver.app', configs, wait)
+
+
+def stop(process):
+  import utilrsw.uvicorn
+  utilrsw.uvicorn.stop(process)
+
+
+def run_cli():
+  """
+  Entry point for hapiserver script (set by [project.scripts] > hapiserver
+  in pyproject.toml)
+  """
+
+  import hapiserver
+
+  configs = hapiserver.cli()
+
+  # configs is a dict with keys 'server' and 'app', where 'server' contains
+  # args for uvicorn and 'app' contains args for the ASGI app.
+
+  logger.info(f"configs: {configs}")
 
   run(configs)

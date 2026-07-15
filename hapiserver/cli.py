@@ -45,6 +45,12 @@ def cli(config=None):
     }
   }
 
+  if config is not None:
+    # Test functions call cli() with a path to a config file, so set that
+    # as the default and make --config not required in that case.
+    clargs['config']['default'] = str(config)
+    clargs['config']['required'] = False
+
   parser_kwargs = {
     "description": description,
     "formatter_class": argparse.RawDescriptionHelpFormatter
@@ -56,7 +62,7 @@ def cli(config=None):
   for k, v in clargs.items():
     parser.add_argument(f'--{k}', **v)
 
-  args = parser.parse_args()
+  args, _ = parser.parse_known_args()
   if args.debug:
     logging.getLogger('hapiserver').setLevel(logging.DEBUG)
   if args.log_level:
