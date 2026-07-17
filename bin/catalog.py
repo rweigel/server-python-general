@@ -1,4 +1,4 @@
-def catalog():
+def catalog(config=None):
   """
   Note that catalog responses should be fast (not much slower than the time to
   read and send a file the size of a catalog from disk). If building the catalog

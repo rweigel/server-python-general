@@ -16,5 +16,8 @@
     "id": "Demo",
     "title": "Demo HAPI Server using hapiserver Python package",
     "contact": ""
+  },
+  "capabilities": {
+    "outputFormats": ["csv", "json"]
   }
 }

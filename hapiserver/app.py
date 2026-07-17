@@ -75,6 +75,15 @@ def _init_get(app, patho, config):
     return fastapi.responses.Response(**response)
 
 
+  path = f"{patho}/capabilities"
+  logger.info(f"Initalizing endpoint {path}/")
+  capabilities_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/capabilities", 'get'])
+  @app.get(path, response_class=fastapi.responses.JSONResponse, **capabilities_kwargs)
+  def capabilities(request: fastapi.Request):
+    response = _capabilities(config)
+    return fastapi.responses.Response(**response)
+
+
   path = f"{patho}/catalog"
   logger.info(f"Initalizing endpoint {path}/")
   catalog_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/catalog", 'get'])
@@ -312,7 +321,7 @@ def _call(endpoint, query_params, config):
 
   if 'scripts' in config and endpoint in config['scripts']:
 
-    args = [str(args[x]) for x in args.keys()]
+    args = [f"'{args[x]}'" for x in args.keys()]
     args = " ".join(args)
 
     if len(args) > 0:
@@ -329,10 +338,15 @@ def _call(endpoint, query_params, config):
       }
       return None, error
 
+    if endpoint == 'data':
+      # For /data, the script is expected to return CSV data as a string.
+      # Return directly in the response.
+      return data, None
+
     try:
       data = json.loads(data)
     except Exception as e:
-      message = f"Error parsing JSON returned by script: {data}"
+      message = f"Error parsing JSON returned by script: '{data}'"
       error = {
         "code": 1500,
         "message": message,
@@ -501,6 +515,23 @@ def _about(config):
       "code": 1200, "message": "OK"
     },
     **config['about']
+  }
+  return {
+    "content": json.dumps(content, indent=2),
+    "media_type": "application/json",
+    "headers": _headers(config),
+  }
+
+
+def _capabilities(config):
+  import json
+  content = {
+    "HAPI": hapiserver.HAPI_VERSION,
+    "status": {
+      "code": 1200,
+      "message": "OK"
+    },
+    **config.get('capabilities', {"outputFormats": ["csv"]})
   }
   return {
     "content": json.dumps(content, indent=2),

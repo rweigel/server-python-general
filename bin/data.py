@@ -1,16 +1,9 @@
-def data(dataset, parameters, start, stop, format=None):
+def data(dataset, parameters, start, stop, format=None, config=None):
   # Start and stop passed are always to nanosecond precision
 
-  import os
-  import ast
   import pandas
 
-  # ENV variable given in config JSON file
-  SERVERCONFIG = os.getenv("SERVER_CONFIG")
-
-  # Parse SERVERCONFIG as dict string
-  server_config = ast.literal_eval(SERVERCONFIG)
-
+  server_config = config if config is not None else {}
   yield_by_row = server_config.get("data", {}).get("yield_by_row", False)
 
   data = [
@@ -28,3 +21,21 @@ def data(dataset, parameters, start, stop, format=None):
     df = pandas.DataFrame(data, columns=["Time", "scalar"])
     csv_data = df.to_csv(index=False)
     yield csv_data
+
+if __name__ == "__main__":
+  import sys
+
+  if len(sys.argv) < 5:
+    print("Usage: data.py <dataset> <parameters> <start> <stop> [format] [config_file]")
+    sys.exit(1)
+  if len(sys.argv) == 6:
+    import json
+    config_file = sys.argv[5]
+    config = json.load(open(config_file))
+  else:
+    config = None
+
+  format = sys.argv[5] if len(sys.argv) > 5 else None
+
+  for chunk in data(*sys.argv[1:5], format=format, config=config):
+    print(chunk, end='')

@@ -1,4 +1,4 @@
-def info(dataset):
+def info(dataset, config=None):
   datasets = {
     "demo1": {
       "startDate": "1970-01-01Z",

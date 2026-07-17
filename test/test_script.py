@@ -58,6 +58,17 @@ def _run_tests(config):
   assert 'HAPI' in response_json
   assert 'status' in response_json
 
+  url = f"{url_base}/capabilities"
+  response = requests.get(url)
+  assert response.status_code == 200
+  assert 'application/json' in response.headers['Content-Type']
+  capabilities = response.json()
+  assert isinstance(capabilities, dict)
+  assert 'outputFormats' in capabilities
+  assert 'HAPI' in response_json
+  assert 'status' in response_json
+
+
   for dataset in catalog:
     url = f"{url_base}/info?dataset={dataset['id']}"
     response = requests.get(url)
@@ -72,9 +83,7 @@ def _run_tests(config):
     url = f"{url_base}/data?dataset={dataset['id']}&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
     response = requests.get(url)
     assert response.status_code == 200
-    assert 'application/json' in response.headers['Content-Type']
-    data = response.json()
-    assert isinstance(data, dict)
+    assert 'text/csv' in response.headers['Content-Type']
 
 
   # Test 404 responses
