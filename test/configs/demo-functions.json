@@ -1,7 +1,11 @@
 {
   "path": "/hapi",
   "ENV": {
-    "BIN_DIR": "../../bin"
+    "SERVER_CONFIG": {
+      "data": {
+        "yield_by_row": true
+      }
+    }
   },
   "functions": {
     "catalog": "bin.catalog.catalog",

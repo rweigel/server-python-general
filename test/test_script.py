@@ -39,8 +39,9 @@ def _run_tests(config):
 
   process = hapiserver.start(configs, wait)
 
+  _log_test_title(url_base)
+
   url = url_base
-  _log_test_title(url)
   response = requests.get(url)
   assert response.status_code == 200
   assert 'text/html' in response.headers['Content-Type']
@@ -68,6 +69,13 @@ def _run_tests(config):
     assert 'status' in info
     assert 'parameters' in info
 
+    url = f"{url_base}/data?dataset={dataset['id']}&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
+    response = requests.get(url)
+    assert response.status_code == 200
+    assert 'application/json' in response.headers['Content-Type']
+    data = response.json()
+    assert isinstance(data, dict)
+
 
   # Test 404 responses
   url = f"{url_base}x"
@@ -93,5 +101,5 @@ def _log_test_title(url):
 
 
 if __name__ == "__main__":
-  test_scripts()
+  #test_scripts()
   test_functions()

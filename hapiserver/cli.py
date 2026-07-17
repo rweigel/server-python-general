@@ -77,4 +77,9 @@ def cli(config=None):
 
   configs['app'] = configs['app']['config']
 
+  # Store the effective hapiserver log level inside the app config so it is
+  # written to APP_CONFIG and available to the uvicorn worker process.
+  if isinstance(configs['app'], dict):
+    configs['app']['log_level'] = logging.getLogger('hapiserver').level
+
   return configs

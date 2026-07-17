@@ -82,29 +82,45 @@ def _resolve_scripts(cfg, config_dir=None):
       _exit_error(f"Script file for endpoint /{script_name} not found: '{script}'")
 
 
+def _import_function(key, value):
+  """Parse a dotted string and import it as a callable.
+
+  Returns (callable, error_message). On success error_message is None;
+  on failure callable is None and error_message describes the problem.
+  """
+  import importlib
+
+  if not isinstance(value, str):
+    return None, f"functions.{key}: expected str or callable, got {type(value).__name__}"
+  last_dot = value.rfind('.')
+  if last_dot == -1:
+    return None, f"functions.{key}: '{value}' has no '.' separator"
+  module_path = value[:last_dot]
+  func_name = value[last_dot + 1:]
+  try:
+    module = importlib.import_module(module_path)
+    attr = getattr(module, func_name)
+    if not callable(attr):
+      return None, f"functions.{key}: '{value}' resolved but is not callable (got {type(attr).__name__})"
+    return attr, None
+  except Exception as e:
+    return None, f"functions.{key}: failed to resolve '{value}': {e}"
+
+
 def _check_functions(cfg):
   """Validate that all string function references in cfg['functions'] can be resolved.
 
   Raises ValueError listing all unresolvable entries. Does not modify cfg.
   """
-  import importlib
-
   errors = []
   for key, value in cfg.get('functions', {}).items():
     if callable(value) or not isinstance(value, str):
       continue
-    last_dot = value.rfind('.')
-    if last_dot == -1:
-      errors.append(f"functions.{key}: '{value}' has no '.' separator")
-      continue
-    module_path = value[:last_dot]
-    func_name = value[last_dot + 1:]
-    try:
-      module = importlib.import_module(module_path)
-      getattr(module, func_name)
-      logger.debug(f"Validated functions.{key} -> {module_path}.{func_name}")
-    except Exception as e:
-      errors.append(f"functions.{key}: failed to resolve '{value}': {e}")
+    _, error = _import_function(key, value)
+    if error:
+      errors.append(error)
+    else:
+      logger.debug(f"Validated that functions.{key} resolves.")
 
   if errors:
     raise ValueError("Unresolvable function references:\n" + "\n".join(errors))
@@ -115,27 +131,21 @@ def _resolve_functions(cfg):
 
   String format: 'module.path.function_name' (standard Python dotted path).
   Skips values that are already callable.
+  Raises ValueError listing all entries that cannot be resolved.
   """
-  import importlib
-
+  errors = []
   for key, value in cfg.get('functions', {}).items():
     if callable(value):
       continue
-    if not isinstance(value, str):
-      logger.warning(f"functions.{key}: expected str or callable, got {type(value).__name__}")
+    attr, error = _import_function(key, value)
+    if error:
+      errors.append(error)
       continue
-    last_dot = value.rfind('.')
-    if last_dot == -1:
-      logger.warning(f"functions.{key}: '{value}' has no '.' separator; skipping")
-      continue
-    module_path = value[:last_dot]
-    func_name = value[last_dot + 1:]
-    try:
-      module = importlib.import_module(module_path)
-      cfg['functions'][key] = getattr(module, func_name)
-      logger.debug(f"Resolved functions.{key} -> {module_path}.{func_name}")
-    except Exception as e:
-      logger.warning(f"functions.{key}: failed to resolve '{value}': {e}")
+    cfg['functions'][key] = attr
+    logger.debug(f"Resolved functions.{key} -> {value}")
+
+  if errors:
+    raise ValueError("Unresolvable function references:\n" + "\n".join(errors))
 
 
 def _set_env(config):

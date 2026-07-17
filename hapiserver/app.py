@@ -107,7 +107,7 @@ def _init_get(app, patho, config):
     else:
       stream = response['content']
       del response['content']
-      return fastapi.responses.StreamingResponse(stream(), **response)
+      return fastapi.responses.StreamingResponse(stream, **response)
 
 
 def _init_head(app, patho):
@@ -297,11 +297,18 @@ def _call(endpoint, query_params, config):
 
   args = {}
   if endpoint == 'info':
-    dataset, error = _response('dataset', query, config)
+    dataset, error = _get('dataset', query, config)
     args = {"dataset": dataset}
     if error:
-      logger.debug(f"_response() returned error: {error}")
+      logger.debug(f"_get() returned error: {error}")
       return None, error
+
+  if endpoint == 'data':
+    args = {}
+    for p in ['dataset', 'start', 'stop', 'parameters']:
+      args[p], error = _get(p, query, config)
+      if error:
+        return hapiserver.error(error, config)
 
   if 'scripts' in config and endpoint in config['scripts']:
 
@@ -336,8 +343,10 @@ def _call(endpoint, query_params, config):
 
     return data, None
 
+
   if 'functions' in config and endpoint in config['functions']:
     func = config['functions'][endpoint]
+    logger.debug(f"Calling {func}({args})")
     try:
       args = [str(args[x]) for x in args.keys()]
       if len(args) > 0:
@@ -377,7 +386,7 @@ def _headers(config, cors=True):
   return headers
 
 
-def _response(name, query, config):
+def _get(name, query, config):
 
   import json
 
@@ -391,7 +400,7 @@ def _response(name, query, config):
     except Exception as e:
       error = {
         "code": 1500,
-        "message_console": f"_response(): Error parsing catalog JSON: {e}"
+        "message_console": f"_get(): Error parsing catalog JSON: {e}"
       }
       return None, error
 
@@ -399,7 +408,7 @@ def _response(name, query, config):
     if query['dataset'] not in dataset_ids:
       error = {
         "code": 1407,
-        "message_console": f"_response(): dataset '{query['dataset']}' not found in catalog"
+        "message_console": f"_get(): dataset '{query['dataset']}' not found in catalog"
       }
       return None, error
 
@@ -432,7 +441,7 @@ def _response(name, query, config):
     except Exception as e:
       error = {
         "code": 1500,
-        "message_console": f"_response(): Error parsing info JSON: {e}"
+        "message_console": f"_get(): Error parsing info JSON: {e}"
       }
       return None, error
 
@@ -536,7 +545,10 @@ def _info(query_params, config):
 
   content = {
     "HAPI": hapiserver.HAPI_VERSION,
-    "status": {"code": 1200, "message": "OK"},
+    "status": {
+      "code": 1200,
+      "message": "OK"
+    },
     **info
   }
 
@@ -549,6 +561,20 @@ def _info(query_params, config):
 
 def _data(query_params, config):
 
+  data, error = _call('data', query_params, config)
+  if error:
+    return hapiserver.error(error, config)
+
+  print(data)
+
+  response = {
+    "content": data,
+    "media_type": "text/csv",
+    "headers": _headers(config),
+  }
+
+  return response
+
   logger.debug(f"/data request: {query_params}")
   query = _query_params_dict(query_params)
   logger.debug(f"/data request: {query}")
@@ -558,17 +584,18 @@ def _data(query_params, config):
     return None, error
 
   for p in ['dataset', 'start', 'stop', 'parameters']:
-    query[p], error = _response(p, query, config)
+    query[p], error = _get(p, query, config)
     if error:
       return hapiserver.error(error, config)
 
   args = f"{query['dataset']} {query['start']} {query['stop']} {query['parameters']}"
 
-  if 'scripts' in config and 'data' in config['scripts']:
+  if 'scripts' in config:
     stream = config.get('stream', None)
     stdout, error = hapiserver.exec(config["scripts"]["data"], args, stream=stream)
     if error:
       return hapiserver.error(error, config)
+
 
   response = {
     "content": stdout,
