@@ -28,7 +28,9 @@ def exec(script, args="", stream=None):
 
 def _read(script, args=""):
 
-  call = [sys.executable, script, *args.split()]
+  if isinstance(args, str):
+    args = args.split()
+  call = [sys.executable, script, *args]
   logger.info(f"Executing: {' '.join(call)}")
   try:
     kwargs = {
@@ -57,7 +59,9 @@ def _stream(script, args="", stream=None):
   stream_stderr = stream.get('stderr', False)
   chunk_size = stream.get('chunk_size', 1000000)
 
-  call = [sys.executable, script, *args.split()]
+  if isinstance(args, str):
+    args = args.split()
+  call = [sys.executable, script, *args]
   logger.info(f"Executing: {' '.join(call)}")
   try:
     kwargs = {

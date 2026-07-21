@@ -4,6 +4,7 @@ __all__ = [
   "app",
   "cli",
   "config",
+  "endpoints",
   "error",
   "exec",
   "get",
@@ -11,6 +12,7 @@ __all__ = [
   "util"
 ]
 
+from hapiserver import endpoints
 from hapiserver import openapi
 from hapiserver import util
 from hapiserver.app import app
@@ -63,7 +65,7 @@ def start(configs, wait=None):
     # Run in this thread and block until shutdown.
     utilrsw.uvicorn.run('hapiserver.app', configs)
   else:
-    utilrsw.uvicorn.start('hapiserver.app', configs, wait)
+    return utilrsw.uvicorn.start('hapiserver.app', configs, wait)
 
 
 def stop(process):

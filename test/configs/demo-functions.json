@@ -1,12 +1,5 @@
 {
   "path": "/hapi",
-  "ENV": {
-    "SERVER_CONFIG": {
-      "data": {
-        "yield_by_row": true
-      }
-    }
-  },
   "functions": {
     "catalog": "bin.catalog.catalog",
     "info": "bin.info.info",

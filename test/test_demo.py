@@ -1,5 +1,5 @@
 # Usage:
-#   python test_script.py
+#   python test_demo.py
 
 import logging
 
@@ -15,13 +15,21 @@ wait = {
 def test_scripts():
   import pathlib
   config = pathlib.Path(__file__).parent / "configs" / "demo-scripts.json"
+
+  logger.info("Executing test_scripts()")
   _run_tests(config)
+  logger.info("")
+  logger.info("")
 
 
 def test_functions():
   import pathlib
   config = pathlib.Path(__file__).parent / "configs" / "demo-functions.json"
+
+  logger.info("Executing test_functions()")
   _run_tests(config)
+  logger.info("")
+  logger.info("")
 
 
 def _run_tests(config):
@@ -80,10 +88,19 @@ def _run_tests(config):
     assert 'status' in info
     assert 'parameters' in info
 
-    url = f"{url_base}/data?dataset={dataset['id']}&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
+    url = f"{url_base}/data?dataset={dataset['id']}&parameters=scalar&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
     response = requests.get(url)
     assert response.status_code == 200
     assert 'text/csv' in response.headers['Content-Type']
+    assert 'Time,scalar' in response.text
+
+    url = f"{url_base}/data?dataset=missing&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
+    response = requests.get(url)
+    assert response.status_code == 400
+
+    url = f"{url_base}/data?dataset={dataset['id']}&parameters=missing&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
+    response = requests.get(url)
+    assert response.status_code == 400
 
 
   # Test 404 responses
@@ -110,5 +127,5 @@ def _log_test_title(url):
 
 
 if __name__ == "__main__":
-  #test_scripts()
+  test_scripts()
   test_functions()
