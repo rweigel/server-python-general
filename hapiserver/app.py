@@ -62,7 +62,7 @@ def _init_get(app, patho, config):
   logger.debug(f"Initalizing GET endpoint {path} with {root_get_kwargs}")
   @app.get(path, response_class=fastapi.responses.HTMLResponse, **root_get_kwargs)
   def indexhtml(request: fastapi.Request):
-    response = hapiserver.endpoints.hapi(config)
+    response = hapiserver.endpoints.hapi(request.query_params, config)
     return fastapi.responses.Response(**response)
 
 
@@ -71,7 +71,7 @@ def _init_get(app, patho, config):
   about_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/about", 'get'])
   @app.get(path, response_class=fastapi.responses.JSONResponse, **about_kwargs)
   def about(request: fastapi.Request):
-    response = hapiserver.endpoints.about(config)
+    response = hapiserver.endpoints.about(request.query_params, config)
     return fastapi.responses.Response(**response)
 
 
@@ -80,7 +80,7 @@ def _init_get(app, patho, config):
   capabilities_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/capabilities", 'get'])
   @app.get(path, response_class=fastapi.responses.JSONResponse, **capabilities_kwargs)
   def capabilities(request: fastapi.Request):
-    response = hapiserver.endpoints.capabilities(config)
+    response = hapiserver.endpoints.capabilities(request.query_params, config)
     return fastapi.responses.Response(**response)
 
 

@@ -116,6 +116,33 @@ def _run_tests(config):
     response = requests.get(url)
     assert response.status_code == 404
 
+
+  url = f"{url_base}/about?xxxabc=123"
+  response = requests.get(url)
+  assert response.status_code == 400
+  json_response = response.json()
+  assert 'status' in json_response
+  assert 'code' in json_response['status']
+  assert json_response['status']['code'] == 1401
+
+
+  url = f"{url_base}/catalog?xxxabc=123"
+  response = requests.get(url)
+  assert response.status_code == 400
+  json_response = response.json()
+  assert 'status' in json_response
+  assert 'code' in json_response['status']
+  assert json_response['status']['code'] == 1401
+
+  url = f"{url_base}/info?dataset=demo1&xxxabc=123"
+  response = requests.get(url)
+  assert response.status_code == 400
+  json_response = response.json()
+  assert 'status' in json_response
+  assert 'code' in json_response['status']
+  assert json_response['status']['code'] == 1401
+
+
   url = f"{url_base}/data?xxxdataset=demo1&{start_stop}"
   response = requests.get(url)
   assert response.status_code == 400

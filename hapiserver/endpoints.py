@@ -7,9 +7,13 @@ logger = logging.getLogger(__name__)
 
 
 # Endpoint response functions
-def hapi(config):
-  # TODO: This silently ignores any query parameters
+def hapi(query_params, config):
   import os
+
+  error = _query_param_error('hapi', query_params)
+  if error:
+    logger.debug(f"_query_param_error() returned error: {error}")
+    return hapiserver.error(error, config)
 
   default = os.path.normpath(os.path.join(os.path.dirname(__file__)))
   default = os.path.join(default, "..", "html", "index.html")
@@ -38,8 +42,14 @@ def hapi(config):
   return response
 
 
-def about(config):
+def about(query_params, config):
   import json
+
+  error = _query_param_error('about', query_params)
+  if error:
+    logger.debug(f"_query_param_error() returned error: {error}")
+    return hapiserver.error(error, config)
+
   content = {
     "HAPI": hapiserver.HAPI_VERSION,
     "status": {
@@ -54,8 +64,14 @@ def about(config):
   }
 
 
-def capabilities(config):
+def capabilities(query_params, config):
   import json
+
+  error = _query_param_error('capabilities', query_params)
+  if error:
+    logger.debug(f"_query_param_error() returned error: {error}")
+    return hapiserver.error(error, config)
+
   content = {
     "HAPI": hapiserver.HAPI_VERSION,
     "status": {
@@ -73,8 +89,12 @@ def capabilities(config):
 
 def catalog(query_params, config):
 
-  catalog, error = _call('catalog', query_params, config)
+  error = _query_param_error('catalog', query_params)
+  if error:
+    logger.debug(f"_query_param_error() returned error: {error}")
+    return hapiserver.error(error, config)
 
+  catalog, error = _call('catalog', query_params, config)
   if error:
     return hapiserver.error(error, config)
 
@@ -97,6 +117,11 @@ def catalog(query_params, config):
 
 
 def info(query_params, config):
+
+  error = _query_param_error('info', query_params)
+  if error:
+    logger.debug(f"_query_param_error() returned error: {error}")
+    return hapiserver.error(error, config)
 
   info, error = _call('info', query_params, config)
   if error:
@@ -122,6 +147,11 @@ def info(query_params, config):
 
 
 def data(query_params, config):
+
+  error = _query_param_error('data', query_params)
+  if error:
+    logger.debug(f"_query_param_error() returned error: {error}")
+    return hapiserver.error(error, config)
 
   data, error = _call('data', query_params, config)
   if error:
@@ -164,8 +194,22 @@ def _query_param_error(endpoint, query):
 
   logger.debug("_query_param_error(): Checking query parameters.")
 
-  if endpoint == 'catalog':
+  query = _query_params_dict(query)
+
+  if endpoint == 'hapi':
     allowed = []
+    required = []
+
+  if endpoint == 'capabilities':
+    allowed = []
+    required = []
+
+  if endpoint == 'about':
+    allowed = []
+    required = []
+
+  if endpoint == 'catalog':
+    allowed = [] # TODO: Add support for depth and resolve_references
     required = []
 
   if endpoint == 'info':
@@ -198,11 +242,6 @@ def _call(endpoint, query_params, config):
   logger.debug(f"/{endpoint} query str:  '{query_params}'")
   query = _query_params_dict(query_params)
   logger.debug(f"/{endpoint} query dict: {query}")
-
-  error = _query_param_error(endpoint, query)
-  if error:
-    logger.debug(f"_query_param_error() returned error: {error}")
-    return None, error
 
   args = {}
   if endpoint == 'info':
