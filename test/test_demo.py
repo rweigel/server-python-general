@@ -116,6 +116,14 @@ def _run_tests(config):
     response = requests.get(url)
     assert response.status_code == 404
 
+  url = f"{url_base}/data?xxxdataset=demo1&{start_stop}"
+  response = requests.get(url)
+  assert response.status_code == 400
+  json_response = response.json()
+  assert 'status' in json_response
+  assert 'code' in json_response['status']
+  assert json_response['status']['code'] == 1401
+
   url = f"{url_base}/data?dataset=INVALID&{start_stop}"
   response = requests.get(url)
   assert response.status_code == 404
@@ -127,7 +135,6 @@ def _run_tests(config):
   url = f"{url_base}/data?dataset={dataset['id']}&parameters=INVALID&{start_stop}"
   response = requests.get(url)
   assert response.status_code == 404
-  breakpoint()
   json_response = response.json()
   assert 'status' in json_response
   assert 'code' in json_response['status']
