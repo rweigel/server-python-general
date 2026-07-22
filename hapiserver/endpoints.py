@@ -433,11 +433,21 @@ def _call(endpoint, query_params, config):
     func = config['functions'][endpoint]
     logger.debug(f"Calling {func}({args})")
     try:
+      import inspect
+
+      func_params = inspect.signature(func).parameters
       args = [str(args[x]) for x in args.keys()]
+      config_kwarg = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in func_params.values())
       if len(args) > 0:
-        data = func(*args)
+        if 'config' in func_params or config_kwarg:
+          data = func(*args, config=config)
+        else:
+          data = func(*args)
       else:
-        data = func()
+        if 'config' in func_params or config_kwarg:
+          data = func(config=config)
+        else:
+          data = func()
     except Exception as e:
       message = f"Error executing {endpoint} function"
       error = {
