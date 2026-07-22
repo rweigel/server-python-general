@@ -77,6 +77,8 @@ def _run_tests(config):
   assert 'status' in response_json
 
 
+  start_stop = "start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
+
   for dataset in catalog:
     url = f"{url_base}/info?dataset={dataset['id']}"
     response = requests.get(url)
@@ -88,22 +90,21 @@ def _run_tests(config):
     assert 'status' in info
     assert 'parameters' in info
 
-    url = f"{url_base}/data?dataset={dataset['id']}&parameters=scalar&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
+    url = f"{url_base}/data?dataset={dataset['id']}&parameters=scalar&{start_stop}"
     response = requests.get(url)
     assert response.status_code == 200
     assert 'text/csv' in response.headers['Content-Type']
-    assert 'Time,scalar' in response.text
+    assert response.text.strip() == "1970-01-01T00:00:00Z,0"
 
-    url = f"{url_base}/data?dataset=missing&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
+    start_stop = "start=1970-01-01T00:00:00Z&stop=1970-01-01T00:01:00Z"
+    url = f"{url_base}/data?dataset={dataset['id']}&parameters=scalar&{start_stop}"
     response = requests.get(url)
-    assert response.status_code == 400
-
-    url = f"{url_base}/data?dataset={dataset['id']}&parameters=missing&start=1970-01-01T00:00:00Z&stop=1970-01-01T00:00:01Z"
-    response = requests.get(url)
-    assert response.status_code == 400
+    assert response.status_code == 200
+    assert 'text/csv' in response.headers['Content-Type']
+    assert len(response.text.splitlines()) == 60
 
 
-  # Test 404 responses
+  # Test error responses
   url = f"{url_base}x"
   _log_test_title(url)
   response = requests.get(url)
@@ -114,6 +115,24 @@ def _run_tests(config):
     _log_test_title(url)
     response = requests.get(url)
     assert response.status_code == 404
+
+  url = f"{url_base}/data?dataset=INVALID&{start_stop}"
+  response = requests.get(url)
+  assert response.status_code == 404
+  json_response = response.json()
+  assert 'status' in json_response
+  assert 'code' in json_response['status']
+  assert json_response['status']['code'] == 1406
+
+  url = f"{url_base}/data?dataset={dataset['id']}&parameters=INVALID&{start_stop}"
+  response = requests.get(url)
+  assert response.status_code == 404
+  breakpoint()
+  json_response = response.json()
+  assert 'status' in json_response
+  assert 'code' in json_response['status']
+  assert json_response['status']['code'] == 1407
+
 
   hapiserver.stop(process)
 

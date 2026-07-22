@@ -180,7 +180,8 @@ def _query_param_error(endpoint, query):
     if p not in allowed and not p.startswith('x_'):
       return {
         "code": 1401,
-        "message_console": f"info(): Unknown query parameter '{p}'"
+        "message": f"Unknown query parameter '{p}'. Allowed: {', '.join(allowed)}",
+        "message_console": f"Unknown query parameter '{p}'"
       }
 
   for p in required:
@@ -319,7 +320,8 @@ def _get(name, query, config):
     dataset_ids = [dataset['id'] for dataset in datasets]
     if query['dataset'] not in dataset_ids:
       error = {
-        "code": 1407,
+        "code": 1406,
+        "message": f"Invalid dataset. Allowed datasets: {', '.join(dataset_ids)}",
         "message_console": f"_get(): dataset '{query['dataset']}' not found in catalog"
       }
       return None, error
@@ -366,6 +368,7 @@ def _get(name, query, config):
       if p not in parameters_known:
         error = {
           "code": 1407,
+          "message": f"Unknown parameter. Allowed: {', '.join(parameters_known)}",
           "message_console": f"data(): Unknown parameter '{p}'"
         }
         return None, error

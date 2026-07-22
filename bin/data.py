@@ -28,13 +28,33 @@ def _read_file(file_name, parameters):
   Simulate a data source that provides data in chunks of 1 minute.
   _read_file() always returns data in one-minute chunks that start on the
   0th minute of each hour.
+
+  Performance notes for file readers:
+  * If the files are slow to read and disk space is available, cache .npy or .pkl
+    files to speed up reading.
   """
 
+  import os
   import pandas
+
+  use_cache = False
+  write_cache = False
+  cache_file = file_name.replace(".txt", ".pkl")
+
+  if not parameters:
+    columns = ['Time', 'scalar']
+  else:
+    columns = ['Time']
+    columns.extend(parameter for parameter in parameters.split(',') if parameter != 'Time')
+
+  if use_cache and os.path.exists(cache_file):
+    logger.debug(f"Reading {file_name} from cache")
+    # Placeholder for reading from cache file
+    pass
 
   logger.debug(f"Reading {file_name}")
 
-  start, stop = file_name.replace(".bin", "").split('_')
+  start, stop = file_name.replace(".txt", "").split('_')
   start = pandas.Timestamp(start)
   stop = pandas.Timestamp(stop)
 
@@ -44,13 +64,14 @@ def _read_file(file_name, parameters):
   time_index = pandas.date_range(start=start, end=stop, freq='1s', inclusive='left')
   data = pandas.DataFrame(index=time_index)
   data['Time'] = data.index.strftime('%Y-%m-%dT%H:%M:%SZ')
-  data['scalar'] = (data.index - pandas.Timestamp('1970-01-01T00:00:00Z')) // pandas.Timedelta('1s')
+  unix_0 = pandas.Timestamp('1970-01-01T00:00:00Z')
+  data['scalar'] = (data.index - unix_0) // pandas.Timedelta('1s')
 
-  if not parameters:
-    return data[['Time', 'scalar']]
+  if write_cache:
+    cache_file = file_name.replace(".txt", ".pkl")
+    # Write file.npy to disk
+    data.to_pickle(cache_file)
 
-  columns = ['Time']
-  columns.extend(parameter for parameter in parameters.split(',') if parameter != 'Time')
   return data[columns]
 
 
@@ -74,21 +95,18 @@ def data(dataset, parameters, start, stop, format=None, config=None):
   chunk_start = request_start.floor('min')
   while chunk_start < request_stop:
     chunk_stop = chunk_start + pandas.Timedelta(**chunk_size)
-    file_name = f"{chunk_start.strftime(tfmt)}_{chunk_stop.strftime(tfmt)}.bin"
+    file_name = f"{chunk_start.strftime(tfmt)}_{chunk_stop.strftime(tfmt)}.txt"
     files.append(file_name)
     chunk_start = chunk_stop
 
   logger.debug(f"Files to read: {files}")
 
-  first_output = True
   for file_name in files:
     chunk = _read_file(file_name, parameters)
     chunk = chunk[(chunk.index >= request_start) & (chunk.index < request_stop)]
 
     if not chunk.empty:
-      yield chunk.to_csv(index=False, header=first_output)
-      first_output = False
-
+      yield chunk.to_csv(index=False, header=False)
 
 
 if __name__ == "__main__":
