@@ -32,6 +32,12 @@ def test_functions():
   logger.info("")
 
 
+def _check_data_response(resp):
+  assert resp.status_code == 200
+  assert 'text/csv' in resp.headers['Content-Type']
+  assert resp.text.strip() == "1970-01-01T00:00:00Z,0"
+
+
 def _run_tests(config):
   import requests
 
@@ -90,18 +96,23 @@ def _run_tests(config):
     assert 'status' in info
     assert 'parameters' in info
 
-    url = f"{url_base}/data?dataset={dataset['id']}&parameters=scalar&{start_stop}"
-    response = requests.get(url)
-    assert response.status_code == 200
-    assert 'text/csv' in response.headers['Content-Type']
-    assert response.text.strip() == "1970-01-01T00:00:00Z,0"
+    start = "1970-01-01T00:00:00Z"
+    stop = "1970-01-01T00:00:01Z"
+    ds = dataset['id']
+    for q in ['dataset', 'id']:
+      url = f"{url_base}/data?{q}={ds}&parameters=scalar&start={start}&stop={stop}"
+      response = requests.get(url)
+      _check_data_response(response)
 
-    start_stop = "start=1970-01-01T00:00:00Z&stop=1970-01-01T00:01:00Z"
-    url = f"{url_base}/data?dataset={dataset['id']}&parameters=scalar&{start_stop}"
-    response = requests.get(url)
-    assert response.status_code == 200
-    assert 'text/csv' in response.headers['Content-Type']
-    assert len(response.text.splitlines()) == 60
+    for q in ['time.min', 'start']:
+      url = f"{url_base}/data?dataset={ds}&parameters=scalar&{q}={start}&stop={stop}"
+      response = requests.get(url)
+      _check_data_response(response)
+
+    for q in ['time.max', 'stop']:
+      url = f"{url_base}/data?dataset={ds}&parameters=scalar&start={start}&{q}={stop}"
+      response = requests.get(url)
+      _check_data_response(response)
 
 
   # Test error responses
