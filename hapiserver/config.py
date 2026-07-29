@@ -1,7 +1,6 @@
 import os
 import json
 import logging
-import sys
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +52,7 @@ def config(config_input=None, config_dir=None, resolve_functions=True):
   _set_env(config_input)
   _resolve_env(config_input)
   _resolve_scripts(config_input, config_dir=config_dir)
+
   if resolve_functions:
     _resolve_functions(config_input)
   else:
@@ -66,20 +66,46 @@ def config(config_input=None, config_dir=None, resolve_functions=True):
 
 
 def _exit_error(message):
+  import sys
+
   logger.error(message)
   print(f"Error: {message}", file=sys.stderr)
   print("Exiting with code 1", file=sys.stderr)
   exit(1)
 
+
 def _resolve_scripts(cfg, config_dir=None):
+  import shlex
+
   for script_name, script in cfg.get("scripts", {}).items():
-    cfg['scripts'][script_name] = os.path.expanduser(script)
-    if config_dir is not None and not os.path.isabs(cfg['scripts'][script_name]):
-      logger.debug(f"Resolving script path {cfg['scripts'][script_name]}")
-      cfg['scripts'][script_name] = os.path.join(config_dir, cfg['scripts'][script_name])
-      logger.debug(f"Resolved script path {cfg['scripts'][script_name]}")
-    if not os.path.exists(cfg['scripts'][script_name]):
-      _exit_error(f"Script file for endpoint /{script_name} not found: '{script}'")
+    script_path, script_args = _split_script(script)
+    script_path = os.path.expanduser(script_path)
+    if config_dir is not None:
+      if not os.path.isabs(script_path):
+        logger.debug(f"Resolving script path {script_path}")
+        emsg = f". Relative path in config '{script_path}' is resolved relative to config file directory: '{config_dir}'"
+        script_path = os.path.join(config_dir, script_path)
+        logger.debug(f"Resolved script path {script_path}")
+    else:
+      if not os.path.isabs(script_path):
+        logger.debug(f"Resolving script path {script_path}")
+        emsg = f". Relative path in config '{script_path}' is resolved relative to current working directory: '{os.getcwd()}'"
+        script_path = os.path.join(os.getcwd(), script_path)
+        logger.debug(f"Resolved script path {script_path}")
+    if not os.path.exists(script_path):
+      msg = f"Script file for endpoint /{script_name} not found: '{script_path}'{emsg}"
+      _exit_error(msg)
+    cfg['scripts'][script_name] = ' '.join(
+      shlex.quote(part) for part in [script_path, *script_args]
+    )
+
+
+def _split_script(script):
+  import shlex
+  parts = shlex.split(script)
+  if not parts:
+    return '', []
+  return parts[0], parts[1:]
 
 
 def _import_function(key, value):
@@ -206,11 +232,6 @@ def _check_config(config):
     config['index.html'] = os.path.expanduser(config['index.html'])
     if not os.path.exists(config['index.html']):
       _exit_error(f"index.html file not found: '{fname}'")
-
-  for script_name, script in config.get("scripts", {}).items():
-    config['scripts'][script_name] = os.path.expanduser(script)
-    if not os.path.exists(config['scripts'][script_name]):
-      _exit_error(f"Script file for endpoint /{script_name} not found: '{script}'")
 
   for endpoint in config.get("scripts", {}):
     if 'functions' in config and endpoint in config['functions']:

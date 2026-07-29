@@ -61,8 +61,10 @@ def _stream(script, args="", stream=None):
 
   if isinstance(args, str):
     args = args.split()
+
   call = [sys.executable, script, *args]
   logger.info(f"Executing: {' '.join(call)}")
+
   try:
     kwargs = {
         "stdout": subprocess.PIPE,

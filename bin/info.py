@@ -24,8 +24,10 @@ def info(dataset, config=None):
       ]
     }
   }
+
   return datasets[dataset]
 
+
 if __name__ == "__main__":
-  import json
-  print(json.dumps(info("demo1"), indent=2))
+  from hapiserver.cli import cl_call
+  cl_call(info)

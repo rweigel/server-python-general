@@ -11,6 +11,7 @@
     "contact": ""
   },
   "capabilities": {
-    "outputFormats": ["csv", "json"]
+    "outputFormats": ["csv"],
+    "catalogDepthOptions": ["dataset", "all"]
   }
 }

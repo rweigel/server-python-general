@@ -1,6 +1,7 @@
 import pathlib
 import subprocess
 
+
 def test_cli():
   configs = {
     "not_found.json": "Config file not found",
@@ -22,6 +23,7 @@ def test_cli():
       output = (e.stdout or '') + (e.stderr or '')
     emsg = f"String '{expected}' not found in output of command '{' '.join(cmd)}':\n{output}"
     assert expected in output, emsg
+
 
 if __name__ == "__main__":
   test_cli()

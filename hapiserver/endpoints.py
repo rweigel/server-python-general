@@ -6,11 +6,11 @@ import hapiserver
 logger = logging.getLogger(__name__)
 
 
-def hapi(query_params, config):
+def hapi(query, config):
   """Response for /hapi endpoint"""
   import os
 
-  error = _query_error('hapi', query_params)
+  error = _query_error('hapi', query, config)
   if error:
     logger.debug(f"_query_error() returned error: {error}")
     return hapiserver.error(error, config)
@@ -43,14 +43,13 @@ def hapi(query_params, config):
   return response
 
 
-def about(query_params, config):
+def about(query, config):
   """Response for /about endpoint"""
 
   import json
 
-  error = _query_error('about', query_params)
+  error = _query_error('about', query, config)
   if error:
-    logger.debug(f"_query_error() returned error: {error}")
     return hapiserver.error(error, config)
 
   content = {
@@ -67,14 +66,13 @@ def about(query_params, config):
   }
 
 
-def capabilities(query_params, config):
+def capabilities(query, config):
   """Response for /capabilities endpoint"""
 
   import json
 
-  error = _query_error('capabilities', query_params)
+  error = _query_error('capabilities', query, config)
   if error:
-    logger.debug(f"_query_error() returned error: {error}")
     return hapiserver.error(error, config)
 
   content = {
@@ -92,15 +90,39 @@ def capabilities(query_params, config):
   }
 
 
-def catalog(query_params, config):
+def _get_json(endpoint, query, config):
+  content, error = _call(endpoint, query, config)
+  if error:
+    return None, error
+
+  if isinstance(content, str):
+    try:
+      content = json.loads(content)
+    except Exception as e:
+      message = f"Error parsing JSON returned by {endpoint} function"
+      error = {
+        "code": 1500,
+        "message": message,
+        "message_console": f"{message}: '{content}'",
+        "exception": e
+      }
+      return None, error
+
+  return content, None
+
+
+def _get_catalog(query, config):
+  return _get_json('catalog', query, config)
+
+
+def catalog(query, config):
   """Response for /catalog endpoint"""
 
-  error = _query_error('catalog', query_params)
+  error = _query_error('catalog', query, config)
   if error:
-    logger.debug(f"_query_error() returned error: {error}")
     return hapiserver.error(error, config)
 
-  catalog, error = _call('catalog', query_params, config)
+  catalog, error = _get_catalog(query, config)
   if error:
     return hapiserver.error(error, config)
 
@@ -122,20 +144,42 @@ def catalog(query_params, config):
   return response
 
 
-def info(query_params, config):
+def _get_info(query, config):
+  return _get_json('info', query, config)
+
+
+def info(query, config):
   """Response for /info endpoint"""
 
-  error = _query_error('info', query_params)
-  if error:
-    logger.debug(f"_query_error() returned error: {error}")
-    return hapiserver.error(error, config)
-
-  info, error = _call('info', query_params, config)
+  error = _query_error('info', query, config)
   if error:
     return hapiserver.error(error, config)
 
-  if isinstance(info, str):
-    info = json.loads(info)
+  query = _normalize_query('info', query)
+
+  catalog, error = _get_catalog(query, config)
+  if error:
+    return hapiserver.error(error, config)
+
+  error = _dataset_error(query['dataset'], catalog)
+  if error:
+    return hapiserver.error(error, config)
+
+  info, error = _get_info(query, config)
+  if error:
+    return hapiserver.error(error, config)
+  info = info.copy()
+
+  if 'parameters' in query:
+    error = _parameters_error(query['parameters'], info)
+    if error:
+      return hapiserver.error(error, config)
+
+    parameters_list = query['parameters'].split(',')
+    if info['parameters']:
+      if info['parameters'][0]['name'] not in parameters_list:
+        parameters_list = [info['parameters'][0]['name']] + parameters_list
+    info['parameters'] = [p for p in info['parameters'] if p['name'] in parameters_list]
 
   content = {
     "HAPI": hapiserver.HAPI_VERSION,
@@ -153,25 +197,55 @@ def info(query_params, config):
   }
 
 
-def data(query_params, config):
+def data(query, config):
   """Response for /data endpoint"""
 
-  error = _query_error('data', query_params)
+  error = _query_error('data', query, config)
   if error:
     logger.debug(f"_query_error() returned error: {error}")
     return hapiserver.error(error, config)
 
-  data, error = _call('data', query_params, config)
+  catalog, error = _get_catalog(query, config)
+  if error:
+    return hapiserver.error(error, config)
+
+  query = _normalize_query('data', query)
+
+  error = _dataset_error(query['dataset'], catalog)
+  if error:
+    return hapiserver.error(error, config)
+
+  info, error = _get_info(query, config)
+  if error:
+    return hapiserver.error(error, config)
+
+  error = _parameters_error(query.get('parameters', ''), info)
+  if error:
+    return hapiserver.error(error, config)
+
+  error = _start_stop_error('data', query, config, info)
+  if error:
+    return hapiserver.error(error, config)
+
+  data, error = _call('data', query, config)
   if error:
     return hapiserver.error(error, config)
 
   response = {
     "content": data,
-    "media_type": "text/csv",
+    "media_type": _data_media_type(query.get('format', 'csv')),
     "headers": _headers(config),
   }
 
   return response
+
+
+def _data_media_type(format):
+  if format == 'csv':
+    return 'text/csv'
+  if format == 'json':
+    return 'application/json'
+  return 'application/octet-stream'
 
 
 def _headers(config, cors=True):
@@ -188,41 +262,189 @@ def _headers(config, cors=True):
   return headers
 
 
-def _query_dict(query_params):
-  """
-  Convert Starlette QueryParams to a plain dict.
+def _parameters_error(parameters, info):
+  if not parameters:
+    return None
 
-  Args:
-    query_params: Starlette QueryParams object
+  info_parameters = [p['name'] for p in info['parameters']]
+  query_parameters = parameters.split(',')
+  invalid_parameters = [p for p in query_parameters if p not in info_parameters]
+  if invalid_parameters:
+    error = {
+      "code": 1407,
+      "message": f"Invalid parameters: {', '.join(invalid_parameters)}. Allowed parameters: {', '.join(info_parameters)}",
+      "message_console": f"Invalid parameters: {', '.join(invalid_parameters)}"
+    }
+    return error
 
-  Returns:
-    dict: Plain dictionary with query parameter keys and values
-  """
+  duplicate_parameters = [
+    p for p in dict.fromkeys(query_parameters)
+    if query_parameters.count(p) > 1
+  ]
+  if duplicate_parameters:
+    error = {
+      "code": 1411,
+      "message": f"Duplicate parameters: {', '.join(duplicate_parameters)}",
+      "message_console": f"Duplicate parameters: {', '.join(duplicate_parameters)}"
+    }
+    return error
 
-  result = {}
-  for key in query_params.keys():
-    values = query_params.getlist(key)
-    if len(values) == 1:
-      result[key] = values[0]
-    else:
-      result[key] = values
+  ordered_parameters = query_parameters
+  if info_parameters and info_parameters[0] not in ordered_parameters:
+    ordered_parameters = [info_parameters[0]] + ordered_parameters
 
-  return result
+  parameter_indices = [info_parameters.index(p) for p in ordered_parameters]
+  if parameter_indices != sorted(parameter_indices):
+    error = {
+      "code": 1411,
+      "message": (
+        "Parameters out of order. Must follow the order defined in /info: "
+        f"{', '.join(info_parameters)}"
+      ),
+      "message_console": f"Parameters out of order: {', '.join(query_parameters)}"
+    }
+    return error
+
+  return None
 
 
-def _query_dict_normalize(query):
-  equivalent = {"id": "dataset", "time.min": "start", "time.max": "stop"}
-  for k, v in equivalent.items():
-    if k in query and v not in query:
-      query[v] = query[k]
+def _dataset_error(dataset_id, catalog):
+
+  dataset_ids = [dataset['id'] for dataset in catalog]
+  if dataset_id not in dataset_ids:
+    error = {
+      "code": 1406,
+      "message": f"Invalid dataset. Allowed datasets: {', '.join(dataset_ids)}",
+      "message_console": f"dataset '{dataset_id}' not found in catalog"
+    }
+    return error
+
+  return None
 
 
-def _query_error(endpoint, query):
-  """Check for errors in query parameters. Does not validate query parameter values.
+def _start_stop_error(endpoint, query, config, info):
+
+  import hapiclient
+  from utilrsw.time import isoduration_to_timedelta
+
+  for name in ['start', 'stop']:
+    try:
+      dt = hapiclient.hapitime2datetime(query[name], allow_missing_Z=True)
+      query[name + "_datetime"] = dt[0]
+      query[name + "_normalized"] = hapiclient.datetime2hapitime(dt[0])
+    except Exception as e:
+      error = {
+        "code": 1402 if name == 'start' else 1403,
+        "message": f"Invalid {name} time",
+        "message_console": f"Invalid {name} time: {query[name]}. Error: {e}"
+      }
+      return error
+
+  if query['stop_datetime'] <= query['start_datetime']:
+    error = {
+      "code": 1404,
+      "message": "Invalid time range: stop <= start",
+      "message_console": f"Invalid time range: stop ({query['stop_normalized']}) <= start ({query['start_normalized']})"
+    }
+    return error
+
+  info_normalized_datetime = {}
+  for name in ['start', 'stop']:
+    key = f'{name}Date'
+    if key not in info:
+      msg = f"Missing {key} in info"
+      return {
+        "code": 1500,
+        "message": msg,
+        "message_console": msg
+      }
+
+    try:
+      info_normalized_datetime[name] = hapiclient.hapitime2datetime(info[key], allow_missing_Z=True)[0]
+    except Exception as e:
+      msg = f"Invalid value for {key} in info: {info[key]}"
+      error = {
+        "code": 1500,
+        "message": msg,
+        "message_console": f"{msg}. Error: {e}"
+      }
+      return error
+
+  a = query['start_datetime'] < info_normalized_datetime['start']
+  b = query['stop_datetime'] > info_normalized_datetime['stop']
+  if a or b:
+    message = ""
+    message_console = ""
+    if a:
+      if query['start_datetime'] < info_normalized_datetime['start']:
+        message += f"start < startDate ({info['startDate']})"
+        message_console = f"start ({query['start_datetime']}) < startDate ({info['startDate']})"
+    if b:
+      if message:
+        message += "; "
+      message += f"stop > stopDate ({info['stopDate']})"
+      if message_console:
+        message_console += "; "
+      message_console += f"stop ({query['stop']}) > stopDate ({info['stopDate']})"
+
+    error = {
+      "code": 1405,
+      "message": message,
+      "message_console": message_console
+    }
+
+    return error
+
+  if 'maxRequestDuration' in info:
+    max_duration = info['maxRequestDuration']
+    # Convert from ISO 8601 duration to seconds.
+    try:
+      max_duration_secs = isoduration_to_timedelta(
+        max_duration,
+        start=query['start_datetime']
+      ).total_seconds()
+    except Exception as e:
+      error = {
+        "code": 1500,
+        "message": f"Invalid maxRequestDuration value in info: {max_duration}",
+        "message_console": f"Invalid maxRequestDuration value in info: {max_duration}. Error: {e}"
+      }
+      return error
+    duration = (query["stop_datetime"] - query["start_datetime"]).total_seconds()
+    if duration > max_duration_secs:
+      msg = f"Invalid time range: duration ({duration} seconds) > "
+      msg += f"maxRequestDuration ({max_duration_secs} seconds)"
+      error = {
+        "code": 1408,
+        "message": msg,
+        "message_console": msg
+      }
+
+      return error
+
+  return None
+
+
+def _normalize_query(endpoint, query):
+  if 'id' in query:
+    query['dataset'] = query['id']
+    del query['id']
+  if 'time.min' in query:
+    query['start'] = query['time.min']
+    del query['time.min']
+  if 'time.max' in query:
+    query['stop'] = query['time.max']
+    del query['time.max']
+
+  return query
+
+
+def _query_error(endpoint, query, config):
+  """Check for errors in query that do not require info or catalog metadata.
 
   Args:
       endpoint (str): The API endpoint (e.g., 'catalog', 'info', 'data', ...)
-      query (dict): Startlette QueryParams object or _query_dict(QueryParams)
+      query (dict): The query as a dictionary.
 
   Returns:
       dict or None: Error dict if an error, otherwise None
@@ -230,26 +452,66 @@ def _query_error(endpoint, query):
 
   logger.debug("Checking query parameters.")
 
-  if not isinstance(query, dict):
-    query = _query_dict(query)
-
   allowed = []
   required = []
   equivalent = {}
 
   if endpoint == 'catalog':
-    # TODO: Add support for:
-    # allowed = ['depth', 'resolve_references']
-    allowed = []
+    if 'depth' in query:
+      depth_options = config.get('capabilities', {}).get('catalogDepthOptions', [])
+      if query['depth'] not in depth_options:
+        error = {
+          "code": 1401,
+          "message": f"Invalid depth value. Allowed values: {', '.join(depth_options)}",
+          "message_console": f"Invalid depth value: '{query['depth']}'"
+        }
+        return error
+
+    allowed = ["depth"]
     required = []
 
   if endpoint == 'info':
-    allowed = ["id", "dataset"]
+    if 'resolve_references' in query:
+      resolve_references = config.get('capabilities', {}).get('resolveReferences', False)
+      if not resolve_references:
+        error = {
+          "code": 1401,
+          "message": "resolve_references is not supported by this server.",
+          "message_console": "resolve_references requested but not advertised in capabilities."
+        }
+        return error
+
+      if query['resolve_references'] not in ['true', 'false']:
+        error = {
+          "code": 1412,
+          "message": "Invalid resolve_references value. Must be 'true' or 'false'.",
+          "message_console": f"Invalid resolve_references value: {query['resolve_references']}."
+        }
+        return error
+
+    allowed = ["id", "dataset", "parameters", "resolve_references"]
     required = ["dataset"]
     equivalent = {"dataset": "id"}
 
   if endpoint == 'data':
-    allowed = ["id", "dataset", "time.min", "start", "time.max", "stop", "parameters"]
+    output_formats = config.get('capabilities', {}).get('outputFormats', ['csv'])
+    if 'format' in query and query['format'] not in output_formats:
+      error = {
+        "code": 1409,
+        "message": f"Invalid stream format. Allowed formats: {', '.join(output_formats)}",
+        "message_console": f"Invalid stream format: '{query['format']}'"
+      }
+      return error
+
+    if 'include' in query and query['include'] not in ['header']:
+      error = {
+        "code": 1410,
+        "message": "Invalid include value. Allowed values 'header'",
+        "message_console": f"Invalid include value: '{query['include']}'"
+      }
+      return error
+
+    allowed = ["id", "dataset", "time.min", "start", "time.max", "stop", "parameters", "format", "include"]
     required = ["dataset", "start", "stop"]
     equivalent = {"dataset": "id", "start": "time.min", "stop": "time.max"}
 
@@ -265,140 +527,47 @@ def _query_error(endpoint, query):
     if p not in query and (p not in equivalent or equivalent[p] not in query):
       return {
         "code": 1400,
-        "message": f"Missing '{p}' parameter",
-        "message_console": f"Missing '{p}' parameter"
+        "message": f"Missing '{p}' parameter"
+      }
+
+  for p, eq in equivalent.items():
+    if p in query and eq in query:
+      return {
+        "code": 1400,
+        "message": f"Query parameter '{eq}' is equivalent to '{p}'. Use only one of them."
       }
 
   return None
 
 
-def _query_value(name, query, config):
-  """
-  Get and validate a query parameter value.
-
-  Returns (value, error). If error is not None, value is None.
-  """
-
-  import json
-
-  if name == 'dataset':
-    response = catalog({}, config)
-    if response.get('status_code', 200) != 200:
-      error = {
-        "code": response.get('status_code', 1500),
-        "message": "Failed to get catalog",
-        "message_console": "Failed to get catalog"
-      }
-      return None, error
-
-    try:
-      datasets = json.loads(response['content'])['catalog']
-    except Exception as e:
-      error = {
-        "code": 1500,
-        "message": "Failed to parse catalog",
-        "message_console": f"Error parsing catalog JSON: {e}"
-      }
-      return None, error
-
-    dataset_ids = [dataset['id'] for dataset in datasets]
-    if query['dataset'] not in dataset_ids:
-      error = {
-        "code": 1406,
-        "message": f"Invalid dataset. Allowed datasets: {', '.join(dataset_ids)}",
-        "message_console": f"dataset '{query['dataset']}' not found in catalog"
-      }
-      return None, error
-
-    return query['dataset'], None
-
-
-  # TODO: Validate start/stop
-  if name == 'start':
-    return query['start'], None
-
-  if name == 'stop':
-    return query['stop'], None
-
-  if name == 'parameters':
-
-    if 'parameters' not in query:
-      return '', None
-    parameters = query['parameters']
-    if parameters is None:
-      return '', None
-    if parameters == '':
-      return '', None
-
-    response = info({'dataset': query['dataset']}, config)
-    if response.get('status_code', 200) != 200:
-      error = {
-        "code": response.get('status_code', 1500),
-        "message_console": f"Failed to get info for dataset '{query['dataset']}'",
-        "message": "Failed to get info"
-      }
-      return None, error
-
-    try:
-      info_content = json.loads(response['content'])
-    except Exception as e:
-      error = {
-        "code": 1500,
-        "message": "Failed to get info",
-        "message_console": f"Error parsing info JSON: {e}"
-      }
-      return None, error
-
-
-    parameters_known = []
-    if parameters:
-      parameters_known = [p['name'] for p in info_content.get('parameters', [])]
-
-    for p in parameters.split(","):
-      if p not in parameters_known:
-        error = {
-          "code": 1407,
-          "message": f"Unknown parameter. Allowed: {', '.join(parameters_known)}",
-          "message_console": f"Unknown parameter '{p}'"
-        }
-        return None, error
-
-    return parameters, None
-
-
-def _call(endpoint, query_params, config):
-
-  if not isinstance(query_params, dict):
-    logger.debug(f"/{endpoint} query str:  '{query_params}'")
-    query = _query_dict(query_params)
-  else:
-    query = query_params
-  logger.debug(f"/{endpoint} query dict: {query}")
-
-  _query_dict_normalize(query)
+def _call(endpoint, query, config):
 
   args = {}
+  if endpoint == 'catalog' and 'depth' in query:
+    args = {"depth": query['depth']}
+
   if endpoint == 'info':
-    dataset, error = _query_value('dataset', query, config)
-    args = {"dataset": dataset}
-    if error:
-      return None, error
+    args = {"dataset": query['dataset']}
 
   if endpoint == 'data':
-    args = {}
-    for p in ['dataset', 'parameters', 'start', 'stop']:
-      args[p], error = _query_value(p, query, config)
-      if error:
-        return None, error
+    args = {
+      'dataset': query['dataset'],
+      'parameters': query.get('parameters', ''),
+      'start': query['start_normalized'],
+      'stop': query['stop_normalized']
+    }
+    if 'format' in query:
+      args['format'] = query['format']
 
   if 'scripts' in config and endpoint in config['scripts']:
 
-    args = [str(args[x]) for x in args.keys()]
+    script_vals = {**query, **args}
+    script, script_args = _script_command(config['scripts'][endpoint], script_vals)
 
-    if len(args) > 0:
-      data, error = hapiserver.exec(config["scripts"][endpoint], args=args)
+    if len(script_args) > 0:
+      data, error = hapiserver.exec(script, args=script_args)
     else:
-      data, error = hapiserver.exec(config["scripts"][endpoint])
+      data, error = hapiserver.exec(script)
     if error:
       message = "Endpoint script returned error"
       error = {
@@ -421,7 +590,6 @@ def _call(endpoint, query_params, config):
       error = {
         "code": 1500,
         "message": message,
-        "message_console": message,
         "exception": e
       }
       return None, error
@@ -464,3 +632,20 @@ def _call(endpoint, query_params, config):
     "code": 1500,
     "message": f"No script or function configured for endpoint '{endpoint}'"
   }
+
+
+def _script_command(script, query):
+  from hapiserver.config import _split_script
+
+  script_path, configured_args = _split_script(script)
+  script_args = []
+  for arg in configured_args:
+    try:
+      script_args.append(arg.format(**query))
+    except KeyError:
+      script_args.append('')
+
+  while script_args and script_args[-1] == '':
+    script_args.pop()
+
+  return script_path, script_args

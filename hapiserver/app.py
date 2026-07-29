@@ -1,4 +1,3 @@
-import json
 import logging
 
 import hapiserver
@@ -54,15 +53,22 @@ def app(config):
   return app
 
 
+def _log_request(endpoint_name, request):
+  logger.info(f"{endpoint_name} called with {request.query_params}")
+
+
 def _init_get(app, patho, config):
   import fastapi
 
   path = patho
+
   root_get_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi", 'get'])
   logger.debug(f"Initalizing GET endpoint {path} with {root_get_kwargs}")
   @app.get(path, response_class=fastapi.responses.HTMLResponse, **root_get_kwargs)
   def indexhtml(request: fastapi.Request):
-    response = hapiserver.endpoints.hapi(request.query_params, config)
+    _log_request(path, request)
+    query = request.query_params.__dict__['_dict']
+    response = hapiserver.endpoints.hapi(query, config)
     return fastapi.responses.Response(**response)
 
 
@@ -71,7 +77,9 @@ def _init_get(app, patho, config):
   about_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/about", 'get'])
   @app.get(path, response_class=fastapi.responses.JSONResponse, **about_kwargs)
   def about(request: fastapi.Request):
-    response = hapiserver.endpoints.about(request.query_params, config)
+    _log_request(path, request)
+    query = request.query_params.__dict__['_dict']
+    response = hapiserver.endpoints.about(query, config)
     return fastapi.responses.Response(**response)
 
 
@@ -80,7 +88,9 @@ def _init_get(app, patho, config):
   capabilities_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/capabilities", 'get'])
   @app.get(path, response_class=fastapi.responses.JSONResponse, **capabilities_kwargs)
   def capabilities(request: fastapi.Request):
-    response = hapiserver.endpoints.capabilities(request.query_params, config)
+    _log_request(path, request)
+    query = request.query_params.__dict__['_dict']
+    response = hapiserver.endpoints.capabilities(query, config)
     return fastapi.responses.Response(**response)
 
 
@@ -89,7 +99,9 @@ def _init_get(app, patho, config):
   catalog_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/catalog", 'get'])
   @app.get(path, response_class=fastapi.responses.JSONResponse, **catalog_kwargs)
   def catalog(request: fastapi.Request):
-    response = hapiserver.endpoints.catalog(request.query_params, config)
+    _log_request(path, request)
+    query = request.query_params.__dict__['_dict']
+    response = hapiserver.endpoints.catalog(query, config)
     return fastapi.responses.Response(**response)
 
 
@@ -98,7 +110,9 @@ def _init_get(app, patho, config):
   info_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/info", 'get'])
   @app.get(path, response_class=fastapi.responses.JSONResponse, **info_kwargs)
   def info(request: fastapi.Request):
-    response = hapiserver.endpoints.info(request.query_params, config)
+    _log_request(path, request)
+    query = request.query_params.__dict__['_dict']
+    response = hapiserver.endpoints.info(query, config)
     return fastapi.responses.Response(**response)
 
 
@@ -107,7 +121,9 @@ def _init_get(app, patho, config):
   data_kwargs = hapiserver.openapi.kwargs(['paths', "/hapi/data", 'get'])
   @app.get(path, **data_kwargs)
   def data(request: fastapi.Request):
-    response = hapiserver.endpoints.data(request.query_params, config)
+    _log_request(path, request)
+    query = request.query_params.__dict__['_dict']
+    response = hapiserver.endpoints.data(query, config)
     if response.get('status_code', 200) != 200:
       return fastapi.responses.Response(**response)
 
@@ -121,6 +137,7 @@ def _init_get(app, patho, config):
 
 def _init_head(app, patho):
   import fastapi
+
   def head_kwargs(path):
     path = path.lstrip("/")
     summary = f"HEAD request for '{path}'"
@@ -140,30 +157,35 @@ def _init_head(app, patho):
   path = patho
   @app.head(path, **head_kwargs(path))
   def indexhtml_head(request: fastapi.Request):
+    _log_request(path, request)
     return response
 
   # Initialize {patho}/about
   path = f"{patho}/about"
   @app.head(path, **head_kwargs(path))
   def about_head(request: fastapi.Request):
+    _log_request(path, request)
     return response
 
   # Initialize {patho}/catalog
   path = f"{patho}/catalog"
   @app.head(path, **head_kwargs(path))
   def catalog_head(request: fastapi.Request):
+    _log_request(path, request)
     return response
 
   # Initialize {patho}/info
   path = f"{patho}/info"
   @app.head(path, **head_kwargs(path))
   def info_head(request: fastapi.Request):
+    _log_request(path, request)
     return response
 
   # Initialize {patho}/data
   path = f"{patho}/data"
   @app.head(path, **head_kwargs(path))
   def data_head(request: fastapi.Request):
+    _log_request(path, request)
     return response
 
 
@@ -203,6 +225,7 @@ def _init_redirects(app, patho):
   @app.get(path, **kwargs)
   @app.head(path, **kwargs)
   def root_redirect(request: fastapi.Request, _path=path):
+    _log_request(_path, request)
     return response(_path, request)
 
   # Redirect "{patho}/hapi/about/" to "{patho}/hapi/about"
@@ -211,6 +234,7 @@ def _init_redirects(app, patho):
   @app.get(path, **kwargs)
   @app.head(path, **kwargs)
   def about_redirect(request: fastapi.Request, _path=path):
+    _log_request(_path, request)
     return response(_path, request)
 
   path = "/hapi/catalog/"
@@ -218,6 +242,7 @@ def _init_redirects(app, patho):
   @app.get(path, **kwargs)
   @app.head(path, **kwargs)
   def catalog_redirect(request: fastapi.Request, _path=path):
+    _log_request(_path, request)
     return response(_path, request)
 
   path = "/hapi/info/"
@@ -225,6 +250,7 @@ def _init_redirects(app, patho):
   @app.get(path, **kwargs)
   @app.head(path, **kwargs)
   def info_redirect(request: fastapi.Request, _path=path):
+    _log_request(_path, request)
     return response(_path, request)
 
   path = "/hapi/data/"
@@ -232,6 +258,5 @@ def _init_redirects(app, patho):
   @app.get(path, **kwargs)
   @app.head(path, **kwargs)
   def data_redirect(request: fastapi.Request, _path=path):
+    _log_request(_path, request)
     return response(_path, request)
-
-
