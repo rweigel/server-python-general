@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def catalog(depth=None, config=None):
   """
   Return the catalog of datasets.
@@ -10,6 +14,11 @@ def catalog(depth=None, config=None):
   building the catalog requires a long time, consider caching the catalog
   response in a file and updating the file when there is a change.
   """
+
+  # Options for {catalog,info,data}.py are stored in config["options"]
+  options = (config or {}).get("options", {})
+  logging.basicConfig(level=options.get("LOG_LEVEL", None))
+  logger.debug(f"catalog() called with depth={depth}, config={config}")
 
   cat = [
     {
@@ -38,5 +47,10 @@ def catalog(depth=None, config=None):
   return cat
 
 if __name__ == "__main__":
+  """
+  Allow catalog.py to be run as a command line script for testing or 
+  usage in a server configuration that references command line scripts
+  instead of function references.
+  """
   from hapiserver.cli import cl_call
   cl_call(catalog)

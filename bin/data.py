@@ -1,6 +1,6 @@
 """
 This is a demo data source for a HAPI server. This example was written so that
-modifying it for another data source is straightforward. The primary changes
+modifying it for file-based datasets is straightforward. The primary changes
 needed are to the _file_list(), _read(), _subset(), and _reformat() functions.
 
 Usage and examples:
@@ -10,8 +10,6 @@ Usage and examples:
 import logging
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
-
 
 def _subset(data, parameters, start, stop):
   """
@@ -55,7 +53,7 @@ def _read(file_name, parameters=None, start=None, stop=None, config=None):
   write_cache = False
   cache_file = file_name.replace(".txt", ".pkl")
 
-  cache_dir = (config or {}).get('ENV', {}).get('CACHE_DIR') or 'cache'
+  cache_dir = (config or {}).get('options', {}).get('CACHE_DIR') or 'cache'
   cache_file = os.path.join(cache_dir, os.path.basename(cache_file))
 
   if use_cache and os.path.exists(cache_file):
@@ -111,7 +109,7 @@ def _file_list(dataset, parameters=None, start=None, stop=None, config=None):
   tfmt_full = '%Y-%m-%dT%H:%M:%S.%fZ'
 
   # Not used here, but could be.
-  data_dir = (config or {}).get('ENV', {}).get('DATA_DIR') or 'data'
+  data_dir = (config or {}).get('options', {}).get('DATA_DIR') or 'data'
   logger.debug(f"data_dir = {data_dir}")
 
   files = []
@@ -178,14 +176,17 @@ def data(dataset, parameters, start, stop, format=None, config=None):
   * Do not change the function signature of data().
   """
 
-  logger.debug(config)
+  # Options for {catalog,info,data}.py are stored in config["options"]
+  options = (config or {}).get("options", {})
+  logging.basicConfig(level=options.get("LOG_LEVEL", None))
   msg = f"parameters={parameters}, start={start}, stop={stop}, format={format}"
-  logger.debug(f"dataset called with dataset={dataset}, {msg}")
+  logger.debug(f"data() called with dataset={dataset}, {msg}")
 
   # In production use, this can be omitted because hapiserver validates the
   # arguments before calling data().
   _check_args(dataset, parameters, start, stop, format=format, config=config)
 
+  # Get list of files that contain data for the given dataset and time range.
   files = _file_list(dataset, parameters=parameters, start=start, stop=stop, config=config)
 
   if len(files) == 0:
@@ -199,5 +200,10 @@ def data(dataset, parameters, start, stop, format=None, config=None):
 
 
 if __name__ == "__main__":
+  """
+  Allow data.py to be run as a command line script for testing or 
+  usage in a server configuration that references command line scripts
+  instead of function references.
+  """
   from hapiserver.cli import cl_call
   cl_call(data)

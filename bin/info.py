@@ -1,4 +1,14 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def info(dataset, config=None):
+
+  # Options for {catalog,info,data}.py are stored in config["options"]
+  options = (config or {}).get("options", {})
+  logging.basicConfig(level=options.get("LOG_LEVEL", None))
+  logger.debug(f"info() called with dataset={dataset}, config={config}")
+
   datasets = {
     "demo1": {
       "startDate": "1970-01-01Z",
@@ -29,5 +39,10 @@ def info(dataset, config=None):
 
 
 if __name__ == "__main__":
+  """
+  Allow info.py to be run as a command line script for testing or 
+  usage in a server configuration that references command line scripts
+  instead of function references.
+  """
   from hapiserver.cli import cl_call
   cl_call(info)

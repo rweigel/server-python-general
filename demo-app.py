@@ -4,36 +4,31 @@
 #   Alternative:
 #     gunicorn demo-app:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8001 --workers 4
 
+import os
 import logging
 
 import hapiserver
 logging.getLogger('hapiserver').setLevel(logging.DEBUG)
 
-# Set method for specifying catalog, info, and data functions in config.
+# method = 1, 2, and 3 demonstrate different ways to configure the HAPI server.
 method = 3
 
-config_o = {
-  "path": "/hapi",
-  # Store config used by scripts or functions for catalog, info, and data in ENV.
-  "ENV": {
-    "DATA_DIR": "data",
-    "CACHE_DIR": "cache",
-    "BIN_DIR": "bin"
-  },
-  "about": {
-    "id": "Demo",
-    "title": "Demo HAPI Server using hapiserver Python package"
-  },
-  "capabilities": {
-    # outputFormats is anything supported by the data() function.
-    "outputFormats": ["csv"],
-    # catalogDepthOptions is anything supported by the catalog() function.
-    "catalogDepthOptions": ["dataset", "all"]
-  }
-}
+# The following is used by a test.
+# Override with the METHOD environment variable, if set.
+method = int(os.environ.get("METHOD", 3))
+
+def _read_config():
+  import json
+  import pathlib
+
+  path = pathlib.Path(__file__).parent / "bin" / "config.json"
+
+  with open(path) as file:
+    config = json.load(file)
+  return config
 
 if method == 1:
-  # Import functions and include in config.
+  # Import functions and put function references in config.
 
   from bin.info import info
   from bin.data import data
@@ -45,15 +40,16 @@ if method == 1:
     "data": data
   }
 
-  config = config_o.copy()
+  config = _read_config()
   config.update({"functions": functions})
   app = hapiserver.app(config)
 
-if method == 2:
-  # Include functions in config as strings and resolve at runtime.
-  # Useful when config is stored in a .json file.
 
-  config = config_o.copy()
+if method == 2:
+  # Reference functions in config as strings. Useful when full configuration
+  # is stored in a .json file.
+
+  config = _read_config()
   config.update({
     "functions": {
       "catalog": "bin.catalog.catalog",
@@ -64,13 +60,19 @@ if method == 2:
 
   app = hapiserver.app(config)
 
+
 if method == 3:
   # Reference command line scripts for catalog, info, and data.
-  # Useful when config is stored in a .json file.
-  # Here $BIN_DIR is replaced with the value of config["ENV"]["BIN_DIR"]
+  # $BIN_DIR is replaced with the value of config["ENV"]["BIN_DIR"]
   # and if it is a relative path, it is resolved relative to current working
   # directory.
-  config = config_o.copy()
+  config = _read_config()
+  # Store variables referenced in config in ENV.
+  config.update({
+    "ENV": {
+      "BIN_DIR": "bin"
+    }
+  })
   config.update({
     "scripts": {
       "catalog": "$BIN_DIR/catalog.py --depth={depth} --config={config}",

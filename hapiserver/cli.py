@@ -87,14 +87,25 @@ def cli(config=None):
 def cl_call(func):
 
   import json
+  import inspect
+  import pathlib
   import argparse
   import textwrap
 
   def config(args):
     config = None
-    if args.config:
-      with open(args.config) as file:
+    config_path = args.config
+    if not config_path:
+      # No --config given. Look for a config.json alongside the script
+      # that defines func.
+      script_dir = pathlib.Path(inspect.getfile(func)).resolve().parent
+      candidate = script_dir / "config.json"
+      if candidate.exists():
+        config_path = str(candidate)
+    if config_path:
+      with open(config_path) as file:
         config = json.load(file)
+      config['config_path'] = config_path
     return config
 
   def add_common_args(parser):
