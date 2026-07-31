@@ -57,6 +57,7 @@ def start(configs, wait=None):
   logger.info(f"configs: {configs}")
 
   # Check config but don't resolve functions so config can be serialized.
+  logger.info("Checking config to ensure server will start.")
   hapiserver.config(configs['app'], resolve_functions=False)
 
   _log_start(configs)

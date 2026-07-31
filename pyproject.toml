@@ -37,4 +37,4 @@ version = { attr = "hapiserver.__version__" }
 exclude = ["tests", "docs"]
 
 [tool.setuptools.package-data]
-hapiserver = ["html/**/*"]
+hapiserver = ["html/**/*", "openapi.json"]

@@ -1,2 +1,3 @@
 hapiserver.egg-info/
 __pycache__/
+test/server-python-demo/

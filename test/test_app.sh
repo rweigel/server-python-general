@@ -8,13 +8,23 @@ if [ "$server" != "gunicorn" ] && [ "$server" != "uvicorn" ]; then
   exit 1
 fi
 
-cd ..;
+script_dir=$(cd "$(dirname "$0")" && pwd)
+demo_dir="$script_dir/server-python-demo"
+demo_repo="https://github.com/hapi-server/server-python-demo.git"
+
+if [ -d "$demo_dir/.git" ]; then
+  git -C "$demo_dir" pull --quiet
+else
+  git clone --quiet "$demo_repo" "$demo_dir"
+fi
+
+cd "$demo_dir"
 
 overall_result=0
 
-for METHOD in 1 2 3; do
+for METHOD in 1 2 3 4; do
   export METHOD
-
+  echo -e "\nMETHOD=$METHOD, server=$server\n"
   if [ "$server" == "gunicorn" ]; then
     gunicorn demo-app:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$port --workers 2 &
   else
