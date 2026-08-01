@@ -2,6 +2,7 @@ import json
 import logging
 
 import hapiserver
+from hapiserver.call import call
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def capabilities(query, config):
 
 
 def _get_json(endpoint, query, config):
-  content, error = _call(endpoint, query, config)
+  content, error = call(endpoint, query, config)
   if error:
     return None, error
 
@@ -227,7 +228,7 @@ def data(query, config):
   if error:
     return hapiserver.error(error, config)
 
-  data, error = _call('data', query, config)
+  data, error = call('data', query, config)
   if error:
     return hapiserver.error(error, config)
 
@@ -439,6 +440,89 @@ def _normalize_query(endpoint, query):
   return query
 
 
+def _catalog_query_error(query, config):
+  if 'depth' in query:
+    depth_options = config.get('capabilities', {}).get('catalogDepthOptions', [])
+    if query['depth'] not in depth_options:
+      return {
+        "code": 1413,
+        "message": f"Invalid depth value. Allowed values: {', '.join(depth_options)}",
+        "message_console": f"Invalid depth value: '{query['depth']}'"
+      }
+
+  return None
+
+
+def _info_query_error(query, config):
+  if 'resolve_references' in query:
+    resolve_references = config.get('capabilities', {}).get('resolveReferences', False)
+    if not resolve_references:
+      return {
+        "code": 1401,
+        "message": "resolve_references is not supported by this server.",
+        "message_console": "resolve_references requested but not advertised in capabilities."
+      }
+
+    if query['resolve_references'] not in ['true', 'false']:
+      return {
+        "code": 1412,
+        "message": "Invalid resolve_references value. Must be 'true' or 'false'.",
+        "message_console": f"Invalid resolve_references value: {query['resolve_references']}."
+      }
+
+  return None
+
+
+def _data_query_error(query, config):
+  output_formats = config.get('capabilities', {}).get('outputFormats', ['csv'])
+  if 'format' in query and query['format'] not in output_formats:
+    return {
+      "code": 1409,
+      "message": f"Invalid stream format. Allowed formats: {', '.join(output_formats)}",
+      "message_console": f"Invalid stream format: '{query['format']}'"
+    }
+
+  if 'include' in query and query['include'] not in ['header']:
+    return {
+      "code": 1410,
+      "message": "Invalid include value. Allowed values 'header'",
+      "message_console": f"Invalid include value: '{query['include']}'"
+    }
+
+  return None
+
+
+# Per-endpoint query parameter rules: which parameters are allowed, which
+# are required, and which pairs of parameters are equivalent (e.g. 'id' and
+# 'dataset'). Endpoints not listed here (e.g. 'hapi', 'about',
+# 'capabilities') accept no query parameters other than 'x_*' extensions.
+_QUERY_SPECS = {
+  'catalog': {
+    "allowed": ["depth"],
+    "required": [],
+    "equivalent": {}
+  },
+  'info': {
+    "allowed": ["id", "dataset", "parameters", "resolve_references"],
+    "required": ["dataset"],
+    "equivalent": {"dataset": "id"}
+  },
+  'data': {
+    "allowed": ["id", "dataset", "time.min", "start", "time.max", "stop", "parameters", "format", "include"],
+    "required": ["dataset", "start", "stop"],
+    "equivalent": {"dataset": "id", "start": "time.min", "stop": "time.max"}
+  },
+}
+
+# Per-endpoint validation of parameter values (beyond the generic
+# allowed/required/equivalent checks below).
+_QUERY_VALIDATORS = {
+  'catalog': _catalog_query_error,
+  'info': _info_query_error,
+  'data': _data_query_error,
+}
+
+
 def _query_error(endpoint, query, config):
   """Check for errors in query that do not require info or catalog metadata.
 
@@ -452,68 +536,16 @@ def _query_error(endpoint, query, config):
 
   logger.debug("Checking query parameters.")
 
-  allowed = []
-  required = []
-  equivalent = {}
-
-  if endpoint == 'catalog':
-    if 'depth' in query:
-      depth_options = config.get('capabilities', {}).get('catalogDepthOptions', [])
-      if query['depth'] not in depth_options:
-        error = {
-          "code": 1401,
-          "message": f"Invalid depth value. Allowed values: {', '.join(depth_options)}",
-          "message_console": f"Invalid depth value: '{query['depth']}'"
-        }
-        return error
-
-    allowed = ["depth"]
-    required = []
-
-  if endpoint == 'info':
-    if 'resolve_references' in query:
-      resolve_references = config.get('capabilities', {}).get('resolveReferences', False)
-      if not resolve_references:
-        error = {
-          "code": 1401,
-          "message": "resolve_references is not supported by this server.",
-          "message_console": "resolve_references requested but not advertised in capabilities."
-        }
-        return error
-
-      if query['resolve_references'] not in ['true', 'false']:
-        error = {
-          "code": 1412,
-          "message": "Invalid resolve_references value. Must be 'true' or 'false'.",
-          "message_console": f"Invalid resolve_references value: {query['resolve_references']}."
-        }
-        return error
-
-    allowed = ["id", "dataset", "parameters", "resolve_references"]
-    required = ["dataset"]
-    equivalent = {"dataset": "id"}
-
-  if endpoint == 'data':
-    output_formats = config.get('capabilities', {}).get('outputFormats', ['csv'])
-    if 'format' in query and query['format'] not in output_formats:
-      error = {
-        "code": 1409,
-        "message": f"Invalid stream format. Allowed formats: {', '.join(output_formats)}",
-        "message_console": f"Invalid stream format: '{query['format']}'"
-      }
+  validator = _QUERY_VALIDATORS.get(endpoint)
+  if validator:
+    error = validator(query, config)
+    if error:
       return error
 
-    if 'include' in query and query['include'] not in ['header']:
-      error = {
-        "code": 1410,
-        "message": "Invalid include value. Allowed values 'header'",
-        "message_console": f"Invalid include value: '{query['include']}'"
-      }
-      return error
-
-    allowed = ["id", "dataset", "time.min", "start", "time.max", "stop", "parameters", "format", "include"]
-    required = ["dataset", "start", "stop"]
-    equivalent = {"dataset": "id", "start": "time.min", "stop": "time.max"}
+  spec = _QUERY_SPECS.get(endpoint, {})
+  allowed = spec.get("allowed", [])
+  required = spec.get("required", [])
+  equivalent = spec.get("equivalent", {})
 
   for p in query:
     if p not in allowed and not p.startswith('x_'):
@@ -540,112 +572,4 @@ def _query_error(endpoint, query, config):
   return None
 
 
-def _call(endpoint, query, config):
 
-  args = {}
-  if endpoint == 'catalog' and 'depth' in query:
-    args = {"depth": query['depth']}
-
-  if endpoint == 'info':
-    args = {"dataset": query['dataset']}
-
-  if endpoint == 'data':
-    args = {
-      'dataset': query['dataset'],
-      'parameters': query.get('parameters', ''),
-      'start': query['start_normalized'],
-      'stop': query['stop_normalized']
-    }
-    if 'format' in query:
-      args['format'] = query['format']
-
-  if 'scripts' in config and endpoint in config['scripts']:
-
-    script_vals = {**query, **args}
-    script, script_args = _script_command(config['scripts'][endpoint], script_vals)
-
-    if len(script_args) > 0:
-      data, error = hapiserver.exec(script, args=script_args)
-    else:
-      data, error = hapiserver.exec(script)
-    if error:
-      message = "Endpoint script returned error"
-      error = {
-        "code": 1500,
-        "message": message,
-        "message_console": message,
-        "exception": error
-      }
-      return None, error
-
-    if endpoint == 'data':
-      # For /data, the script is expected to return binary or CSV, so no
-      # JSON parsing is needed.
-      return data, None
-
-    try:
-      data = json.loads(data)
-    except Exception as e:
-      message = f"Error parsing JSON returned by script: '{data}'"
-      error = {
-        "code": 1500,
-        "message": message,
-        "exception": e
-      }
-      return None, error
-
-    return data, None
-
-
-  if 'functions' in config and endpoint in config['functions']:
-    func = config['functions'][endpoint]
-    logger.debug(f"Calling {func}({args})")
-    try:
-      import inspect
-
-      func_params = inspect.signature(func).parameters
-      args = [str(args[x]) for x in args.keys()]
-      config_kwarg = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in func_params.values())
-      if len(args) > 0:
-        if 'config' in func_params or config_kwarg:
-          data = func(*args, config=config)
-        else:
-          data = func(*args)
-      else:
-        if 'config' in func_params or config_kwarg:
-          data = func(config=config)
-        else:
-          data = func()
-    except Exception as e:
-      message = f"Error executing {endpoint} function"
-      error = {
-        "code": 1500,
-        "message": message,
-        "message_console": message,
-        "exception": e
-      }
-      return None, error
-
-    return data, None
-
-  return None, {
-    "code": 1500,
-    "message": f"No script or function configured for endpoint '{endpoint}'"
-  }
-
-
-def _script_command(script, query):
-  from hapiserver.config import _split_script
-
-  script_path, configured_args = _split_script(script)
-  script_args = []
-  for arg in configured_args:
-    try:
-      script_args.append(arg.format(**query))
-    except KeyError:
-      script_args.append('')
-
-  while script_args and script_args[-1] == '':
-    script_args.pop()
-
-  return script_path, script_args

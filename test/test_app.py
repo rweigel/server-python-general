@@ -5,12 +5,12 @@
 import pathlib
 import subprocess
 
-from util import _ensure_demo_repo
+from util.prep_demo_repo import prep_demo_repo
 
 
 def _run_script(server):
   script = pathlib.Path(__file__).parent / "test_app.sh"
-  demo_dir = _ensure_demo_repo()
+  demo_dir = prep_demo_repo()
   cmd = ["bash", str(script), server, str(demo_dir)]
   print(f"Testing: {' '.join(cmd)}")
   result = subprocess.run(cmd, cwd=script.parent, timeout=120)

@@ -3,7 +3,7 @@
 
 import logging
 
-from util import _ensure_demo_repo
+from util.prep_demo_repo import prep_demo_repo
 
 format = '%(name)s %(levelname)s: %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=format)
@@ -16,7 +16,7 @@ wait = {
 
 
 def test_scripts():
-  demo_dir = _ensure_demo_repo()
+  demo_dir = prep_demo_repo()
   config = demo_dir / "src" / "config-scripts.json"
 
   logger.info("Executing test_scripts()")
@@ -29,7 +29,7 @@ def test_functions():
   import os
   import sys
 
-  demo_dir = _ensure_demo_repo()
+  demo_dir = prep_demo_repo()
   config = demo_dir / "src" / "config-functions.json"
 
   # config-functions.json references dotted paths such as
@@ -226,7 +226,7 @@ def _run_tests(config):
   response = requests.get(url)
   assert response.status_code == 400
   json_response = response.json()
-  assert json_response['status']['code'] == 1401
+  assert json_response['status']['code'] == 1413
 
   url = f"{url_base}/info?dataset=demo1&resolve_references=true"
   response = requests.get(url)

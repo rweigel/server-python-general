@@ -2,6 +2,7 @@ __version__ = "0.0.1"
 
 __all__ = [
   "app",
+  "call",
   "cli",
   "config",
   "endpoints",
@@ -16,6 +17,7 @@ from hapiserver import endpoints
 from hapiserver import openapi
 from hapiserver import util
 from hapiserver.app import app
+from hapiserver.call import call
 from hapiserver.cli import cli
 from hapiserver.config import config
 from hapiserver.error import error

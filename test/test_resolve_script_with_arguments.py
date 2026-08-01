@@ -6,7 +6,7 @@ def test_resolve_script_with_arguments():
   import tempfile
 
   from hapiserver.config import _resolve_scripts, _split_script
-  from hapiserver.endpoints import _script_command
+  from hapiserver.call import _script_command
 
   with tempfile.TemporaryDirectory() as tmp_dir:
     tmp_path = pathlib.Path(tmp_dir)

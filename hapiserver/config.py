@@ -12,7 +12,6 @@ def config(config_input=None, config_dir=None, resolve_functions=True):
     - a file path string
     - a dict with a 'config' key (as returned by hapiserver.cli())
     - a fully-formed config dict (passed through after env expansion)
-    - None: reads path from the HAPISERVER_CONFIG environment variable
 
   ENV variables defined in the config are set as OS environment variables
   and all $VAR references throughout the config are expanded before returning.

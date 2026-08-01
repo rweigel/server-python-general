@@ -1,12 +1,45 @@
+import json
 import logging
 logger = logging.getLogger(__name__)
 
-def error(error, config, message=None):
-  import json
+_ERRORS = {
+  1200: {"status":{"code": 1200, "message": "OK"}},
+  1201: {"status":{"code": 1201, "message": "OK - no data for time range"}},
+  1400: {"status":{"code": 1400, "message": "Bad request - user input error"}},
+  1401: {"status":{"code": 1401, "message": "Bad request - unknown API parameter name"}},
+  1402: {"status":{"code": 1402, "message": "Bad request - syntax error in start time"}},
+  1403: {"status":{"code": 1403, "message": "Bad request - syntax error in stop time"}},
+  1404: {"status":{"code": 1404, "message": "Bad request - start equal to or after stop"}},
+  1405: {"status":{"code": 1405, "message": "Bad request - start < startDate and/or stop > stopDate"}},
+  1406: {"status":{"code": 1406, "message": "Bad request - unknown dataset id"}},
+  1407: {"status":{"code": 1407, "message": "Bad request - unknown dataset parameter"}},
+  1408: {"status":{"code": 1408, "message": "Bad request - too much time or data requested"}},
+  1409: {"status":{"code": 1409, "message": "Bad request - unsupported output format"}},
+  1410: {"status":{"code": 1410, "message": "Bad request - unsupported include value"}},
+  1411: {"status":{"code": 1411, "message": "Bad request - out-of-order or duplicate parameters"}},
+  1412: {"status":{"code": 1412, "message": "Bad request - unsupported resolve_references value"}},
+  1413: {"status":{"code": 1413, "message": "Bad request - unsupported depth value"}},
+  1500: {"status":{"code": 1500, "message": "Internal server error"}},
+  1501: {"status":{"code": 1501, "message": "Internal server error - upstream request error"}}
+}
 
-  if isinstance(error, int):
-    # If HAPI code given, generate error dict
-    error = _hapi_error(error, message=message)
+
+def error(error, config):
+  """Build a HAPI-formatted error response.
+
+  Args:
+      error (dict): Must contain 'code'. May also contain 'message' (client-
+        facing message, defaults to the standard message for the code),
+        'message_console' (message logged instead of 'message'), and
+        'exception' (an exception whose str() is appended to the logged
+        message).
+      config (dict): The resolved server config (currently unused, reserved
+        for future per-server error customization).
+
+  Returns:
+      dict: kwargs for fastapi.responses.Response (status_code, content,
+      media_type).
+  """
 
   if 'message' not in error:
     # Use default error message
@@ -39,12 +72,14 @@ def error(error, config, message=None):
       status_code = 404
     else:
       status_code = 400
-  if error['code'] >= 1500 and error['code'] <= 1599:
+  elif error['code'] == 1500:
     status_code = 500
-  if error['code'] == 1500:
-    status_code = 500
-  if error['code'] == 1501:
+  elif error['code'] == 1501:
     status_code = 501
+  elif error['code'] >= 1502 and error['code'] <= 1599:
+    status_code = 500
+  else:
+    status_code = 500
 
   response = {
     "status_code": status_code,
@@ -55,30 +90,9 @@ def error(error, config, message=None):
   return response
 
 
-def _hapi_error(code, message=None):
-  errors = {
-    1200: {"status":{"code": 1200, "message": "OK"}},
-    1201: {"status":{"code": 1201, "message": "OK - no data for time range"}},
-    1400: {"status":{"code": 1400, "message": "Bad request - user input error"}},
-    1401: {"status":{"code": 1401, "message": "Bad request - unknown API parameter name"}},
-    1402: {"status":{"code": 1402, "message": "Bad request - syntax error in start time"}},
-    1403: {"status":{"code": 1403, "message": "Bad request - syntax error in stop time"}},
-    1404: {"status":{"code": 1404, "message": "Bad request - start equal to or after stop"}},
-    1405: {"status":{"code": 1405, "message": "Bad request - start < startDate and/or stop > stopDate"}},
-    1406: {"status":{"code": 1406, "message": "Bad request - unknown dataset id"}},
-    1407: {"status":{"code": 1407, "message": "Bad request - unknown dataset parameter"}},
-    1408: {"status":{"code": 1408, "message": "Bad request - too much time or data requested"}},
-    1409: {"status":{"code": 1409, "message": "Bad request - unsupported output format"}},
-    1410: {"status":{"code": 1410, "message": "Bad request - unsupported include value"}},
-    1411: {"status":{"code": 1411, "message": "Bad request - out-of-order or duplicate parameters"}},
-    1412: {"status":{"code": 1412, "message": "Bad request - unsupported resolve_references value"}},
-    1413: {"status":{"code": 1413, "message": "Bad request - unsupported depth value"}},
-    1500: {"status":{"code": 1500, "message": "Internal server error"}},
-    1501: {"status":{"code": 1501, "message": "Internal server error - upstream request error"}}
-  }
+def _hapi_error(code):
+  if code not in _ERRORS:
+    logger.warning(f"Unknown error code: {code}")
+    code = 1500
 
-  if message is not None:
-    # Augment the standard message with the provided one
-    errors[code]['status']['message'] += f". {message}"
-
-  return errors.get(code, errors[1500])['status']
+  return _ERRORS[code]['status']
