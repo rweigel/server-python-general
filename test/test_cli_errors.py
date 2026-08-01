@@ -2,7 +2,7 @@ import pathlib
 import subprocess
 
 
-def test_cli():
+def test_cli_errors():
   configs = {
     "not_found.json": "Config file not found",
     "invalid_json.json": "Error: Failed to read config file",
@@ -26,4 +26,4 @@ def test_cli():
 
 
 if __name__ == "__main__":
-  test_cli()
+  test_cli_errors()

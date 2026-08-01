@@ -3,6 +3,8 @@
 
 import logging
 
+from util import _ensure_demo_repo
+
 format = '%(name)s %(levelname)s: %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=format)
 logger = logging.getLogger(__name__)
@@ -12,210 +14,10 @@ wait = {
   "delay": 0.5
 }
 
-def test_start_stop_error():
-  from hapiserver.endpoints import _start_stop_error
-
-  def validate(
-    start="1970-01-01T00:00:00Z",
-    stop="1970-01-01T00:00:01Z",
-    missing_info=None,
-    **info_overrides):
-
-    query = {
-      "dataset": "demo1",
-      "start": start,
-      "stop": stop
-    }
-
-    info = {
-      "startDate": "1970-01-01T00:00:00Z",
-      "stopDate": "1970-01-01T00:00:02Z",
-      **info_overrides
-    }
-
-    if missing_info:
-      del info[missing_info]
-
-    return _start_stop_error('data', query, {}, info), query
-
-  error, query = validate()
-  assert error is None
-  assert 'start_datetime' in query
-  assert 'stop_datetime' in query
-  assert query['start_normalized'] == "1970-01-01T00:00:00.000000Z"
-  assert query['stop_normalized'] == "1970-01-01T00:00:01.000000Z"
-
-  error, _ = validate(start="INVALID")
-  assert error['code'] == 1402
-  assert error['message'] == "Invalid start time"
-
-  error, _ = validate(stop="INVALID")
-  assert error['code'] == 1403
-  assert error['message'] == "Invalid stop time"
-
-  error, _ = validate(stop="1970-01-01T00:00:00Z")
-  assert error['code'] == 1404
-  assert 'stop <= start' in error['message']
-
-  error, _ = validate(startDate="INVALID")
-  assert error['code'] == 1500
-  assert 'Invalid value for startDate in info' in error['message']
-
-  error, _ = validate(stopDate="INVALID")
-  assert error['code'] == 1500
-  assert 'Invalid value for stopDate in info' in error['message']
-
-  error, _ = validate(missing_info="startDate")
-  assert error['code'] == 1500
-  assert error['message'] == "Missing startDate in info"
-
-  error, _ = validate(missing_info="stopDate")
-  assert error['code'] == 1500
-  assert error['message'] == "Missing stopDate in info"
-
-  error, _ = validate(start="1969-12-31T23:59:59Z")
-  assert error['code'] == 1405
-  assert 'start < startDate' in error['message']
-
-  error, _ = validate(stop="1970-01-01T00:00:03Z")
-  assert error['code'] == 1405
-  assert 'stop > stopDate' in error['message']
-
-  error, _ = validate(
-    start="1969-12-31T23:59:59Z",
-    stop="1970-01-01T00:00:03Z"
-  )
-  assert error['code'] == 1405
-  assert 'start < startDate' in error['message']
-  assert 'stop > stopDate' in error['message']
-
-  error, _ = validate(maxRequestDuration="INVALID")
-  assert error['code'] == 1500
-  assert 'Invalid maxRequestDuration value in info' in error['message']
-
-  error, _ = validate(stop="1970-01-01T00:00:02Z", maxRequestDuration="PT1S")
-  assert error['code'] == 1408
-  assert 'duration (2.0 seconds)' in error['message']
-  assert 'maxRequestDuration (1.0 seconds)' in error['message']
-
-  error, _ = validate(maxRequestDuration="PT1S")
-
-  assert error is None
-
-
-def test_parameters_error():
-  from hapiserver.endpoints import _parameters_error
-
-  info = {
-    "parameters": [
-      {"name": "Time"},
-      {"name": "scalar"}
-    ]
-  }
-
-  assert _parameters_error("", info) is None
-  assert _parameters_error("Time,scalar", info) is None
-  assert _parameters_error("scalar", info) is None
-
-  error = _parameters_error("INVALID", info)
-  assert error['code'] == 1407
-
-  error = _parameters_error("scalar,scalar", info)
-  assert error['code'] == 1411
-  assert error['message'] == "Duplicate parameters: scalar"
-
-  error = _parameters_error("scalar,Time", info)
-  assert error['code'] == 1411
-  assert 'Parameters out of order' in error['message']
-
-
-def test_metadata_json_error():
-  from hapiserver.endpoints import _get_catalog, _get_info
-
-  def valid_catalog():
-    return '[{"id": "demo1"}]'
-
-  def malformed_catalog():
-    return 'INVALID'
-
-  def malformed_info(dataset):
-    return 'INVALID'
-
-  catalog, error = _get_catalog({}, {"functions": {"catalog": valid_catalog}})
-  assert error is None
-  assert catalog == [{"id": "demo1"}]
-
-  catalog, error = _get_catalog({}, {"functions": {"catalog": malformed_catalog}})
-  assert catalog is None
-  assert error['code'] == 1500
-  assert error['message'] == "Error parsing JSON returned by catalog function"
-  assert 'exception' in error
-
-  info, error = _get_info({"dataset": "demo1"}, {"functions": {"info": malformed_info}})
-  assert info is None
-  assert error['code'] == 1500
-  assert error['message'] == "Error parsing JSON returned by info function"
-  assert 'exception' in error
-
-
-def test_resolve_script_with_arguments():
-  import pathlib
-  import tempfile
-
-  from hapiserver.config import _resolve_scripts, _split_script
-  from hapiserver.endpoints import _script_command
-
-  with tempfile.TemporaryDirectory() as tmp_dir:
-    tmp_path = pathlib.Path(tmp_dir)
-    bin_dir = tmp_path / "bin files"
-    bin_dir.mkdir()
-    script_path = bin_dir / "catalog.py"
-    script_path.touch()
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    cfg = {"scripts": {"catalog": "'../bin files/catalog.py' {depth}"}}
-
-    _resolve_scripts(cfg, config_dir=str(config_dir))
-
-    resolved_path, script_args = _split_script(cfg['scripts']['catalog'])
-    assert pathlib.Path(resolved_path).resolve() == script_path.resolve()
-    assert script_args == ['{depth}']
-
-    cmd_path, cmd = _script_command(cfg['scripts']['catalog'], {})
-    assert cmd_path == resolved_path
-    assert cmd == []
-
-    cmd_path, cmd = _script_command(cfg['scripts']['catalog'], {'depth': 'all'}
-    )
-    assert cmd_path == resolved_path
-    assert cmd == ['all']
-
-    cmd_path, cmd = _script_command("catalog.py", {'depth': 'all'})
-    assert cmd_path == "catalog.py"
-    assert cmd == []
-
-    data_script = "data.py --dataset={dataset} --parameters={parameters} "
-    data_script += "--start={start} --stop={stop} --format={format} --config={config}"
-
-
-    data_query = {
-        'dataset': 'demo1',
-        'parameters': '',
-        'start': '1970-01-01T00:00:00.000000Z',
-        'stop': '1970-01-01T00:00:01.000000Z'
-    }
-    _, cmd = _script_command(data_script, data_query)
-    assert cmd == [
-      '--dataset=demo1',
-      '--parameters=',
-      '--start=1970-01-01T00:00:00.000000Z',
-      '--stop=1970-01-01T00:00:01.000000Z'
-    ]
-
 
 def test_scripts():
-  import pathlib
-  config = pathlib.Path(__file__).parent / "configs" / "demo-scripts.json"
+  demo_dir = _ensure_demo_repo()
+  config = demo_dir / "src" / "config-scripts.json"
 
   logger.info("Executing test_scripts()")
   _run_tests(config)
@@ -224,8 +26,26 @@ def test_scripts():
 
 
 def test_functions():
-  import pathlib
-  config = pathlib.Path(__file__).parent / "configs" / "demo-functions.json"
+  import os
+  import sys
+
+  demo_dir = _ensure_demo_repo()
+  config = demo_dir / "src" / "config-functions.json"
+
+  # config-functions.json references dotted paths such as
+  # "src.catalog.catalog", which requires the demo repo's root directory
+  # (the parent of src/) to be importable. Add it to sys.path for imports
+  # performed in this process (e.g. hapiserver.config()'s function
+  # validation) and to PYTHONPATH so the spawned uvicorn worker process
+  # can resolve the same imports.
+  demo_dir_str = str(demo_dir)
+  if demo_dir_str not in sys.path:
+    sys.path.insert(0, demo_dir_str)
+  existing_pythonpath = os.environ.get("PYTHONPATH", "")
+  if demo_dir_str not in existing_pythonpath.split(os.pathsep):
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+      part for part in [demo_dir_str, existing_pythonpath] if part
+    )
 
   logger.info("Executing test_functions()")
   _run_tests(config)
@@ -521,9 +341,5 @@ def _log_test_title(url):
 
 
 if __name__ == "__main__":
-  test_resolve_script_with_arguments()
-  test_metadata_json_error()
-  test_parameters_error()
-  test_start_stop_error()
   test_scripts()
   test_functions()

@@ -1,21 +1,15 @@
 # Usage: test_app.sh <gunicorn|uvicorn>
 
+# Usage: test_app.sh <gunicorn|uvicorn> <demo_dir>
+# demo_dir is the path to a checkout of server-python-demo (see demo_repo.py).
+
 server=$1
+demo_dir=$2
 
 port=8675
-if [ "$server" != "gunicorn" ] && [ "$server" != "uvicorn" ]; then
-  echo "Usage: $0 <gunicorn|uvicorn>"
+if [ "$server" != "gunicorn" ] && [ "$server" != "uvicorn" ] || [ -z "$demo_dir" ]; then
+  echo "Usage: $0 <gunicorn|uvicorn> <demo_dir>"
   exit 1
-fi
-
-script_dir=$(cd "$(dirname "$0")" && pwd)
-demo_dir="$script_dir/server-python-demo"
-demo_repo="https://github.com/hapi-server/server-python-demo.git"
-
-if [ -d "$demo_dir/.git" ]; then
-  git -C "$demo_dir" pull --quiet
-else
-  git clone --quiet "$demo_repo" "$demo_dir"
 fi
 
 cd "$demo_dir"
