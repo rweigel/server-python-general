@@ -16,11 +16,14 @@ def _run_script(server):
   result = subprocess.run(cmd, cwd=script.parent, timeout=120)
   assert result.returncode == 0, f"test_app.sh {server} failed (exit code {result.returncode})"
 
+
 def test_app_uvicorn():
   _run_script("uvicorn")
 
+
 def test_app_gunicorn():
   _run_script("gunicorn")
+
 
 if __name__ == "__main__":
   test_app_uvicorn()

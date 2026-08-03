@@ -20,9 +20,9 @@ for METHOD in 1 2 3 4; do
   export METHOD
   echo -e "\nMETHOD=$METHOD, server=$server\n"
   if [ "$server" == "gunicorn" ]; then
-    gunicorn demo-app:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$port --workers 2 &
+    gunicorn src.app:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$port --workers 2 &
   else
-    uvicorn demo-app:app --host 0.0.0.0 --port $port --workers 2 &
+    uvicorn src.app:app --host 0.0.0.0 --port $port --workers 2 &
   fi
   pid=$!
 

@@ -41,7 +41,7 @@ def _read(script, args=""):
     }
     result = subprocess.run(call, **kwargs)
     if result.stderr:
-      logger.error(f"Script stderr (ignored): \n{result.stderr}")
+      logger.debug(f"Script stderr (ignored): \n{result.stderr}")
     return result.stdout, None
   except Exception as e:
     message = "Execution of script failed"

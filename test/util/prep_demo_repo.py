@@ -13,7 +13,9 @@ def prep_demo_repo():
   demo_dir = tmp_dir / "server-python-demo"
 
   if (demo_dir / ".git").exists():
-    subprocess.run(["git", "-C", str(demo_dir), "pull", "--quiet"], check=True)
+    cmd = ["git", "-C", str(demo_dir), "pull", "--quiet"]
   else:
-    subprocess.run(["git", "clone", "--quiet", DEMO_REPO, str(demo_dir)], check=True)
+    cmd = ["git", "clone", "--quiet", DEMO_REPO, str(demo_dir)]
+  subprocess.run(cmd, check=True)
+
   return demo_dir
